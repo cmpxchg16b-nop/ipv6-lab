@@ -14,6 +14,8 @@ domain_global="2001:db8:1"
 pe1=$(make_address $domain_global 1 1)
 pe2=$(make_address $domain_global 5 1)
 
+sleep 10
+
 ip netns exec pe1 ip vrf exec srv6 ping -c1 "${pe1}::"
 ip netns exec pe1 ip vrf exec srv6 ping -c1 "${pe2}::"
 

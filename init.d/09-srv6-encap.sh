@@ -55,8 +55,9 @@ function install_decap_sid {
   local node=$1       # pe1 / pe2
   local sid=$2        # full SID (function hextet identifies the table)
   local table_id=$3   # customer VRF table to decap into (1001 / 1002)
+  local ce_vrf=$4     # customer VRF name
   echo "  decap $node  sid ${sid}/128  ->  table $table_id"
-  ip -n "$node" route add "${sid}/128" encap seg6local action End.DT4 vrftable "$table_id" dev srv6
+  ip -n "$node" route add "${sid}/128" vrf srv6 encap seg6local action End.DT4 vrftable $table_id dev $ce_vrf
 }
 
 # Install an ingress seg6 encap route in a customer VRF toward an egress PE SID.
@@ -73,11 +74,11 @@ function install_encap_route {
 # End.DT4: decapsulate the inner IPv4 packet and look it up in 'vrftable'.
 #
 # pe1 serves traffic coming -from- pe2 (towards ce1/ce3):
-install_decap_sid pe1 "$pe1_sid_1001" 1001   # -> table 1001 (ce1)
-install_decap_sid pe1 "$pe1_sid_1002" 1002   # -> table 1002 (ce3)
+install_decap_sid pe1 "$pe1_sid_1001" 1001 ce1   # -> table 1001 (ce1)
+install_decap_sid pe1 "$pe1_sid_1002" 1002 ce3   # -> table 1002 (ce3)
 # pe2 serves traffic coming -from- pe1 (towards ce2/ce4):
-install_decap_sid pe2 "$pe2_sid_1001" 1001   # -> table 1001 (ce2)
-install_decap_sid pe2 "$pe2_sid_1002" 1002   # -> table 1002 (ce4)
+install_decap_sid pe2 "$pe2_sid_1001" 1001 ce2  # -> table 1001 (ce2)
+install_decap_sid pe2 "$pe2_sid_1002" 1002 ce4  # -> table 1002 (ce4)
 
 # ---- ingress PE: install the seg6 encap routes in the customer VRFs ---------
 # mode encap wraps the inner IPv4 packet in an outer IPv6/SRH destined to the
@@ -91,6 +92,11 @@ install_encap_route pe2 ce2 10.0.0.0/24 "$pe1_sid_1001"   # ce2 -> ce1 via pe1
 # org 2 (ce3 <-> ce4):
 install_encap_route pe1 ce3 10.0.1.0/24 "$pe2_sid_1002"   # ce3 -> ce4 via pe2
 install_encap_route pe2 ce4 10.0.0.0/24 "$pe1_sid_1002"   # ce4 -> ce3 via pe1
+
+# linux SRv6 hack: you must explictly activate the SID table with policy-based routing:
+# see: https://segment-routing.org/index.php/Implementation/AdvancedConf
+ip -6 -n pe1 rule add to 2001:db8:1::/48 lookup 101
+ip -6 -n pe2 rule add to 2001:db8:1::/48 lookup 101
 
 # -----------------------------------------------------------------------------
 # verify (run by hand):
