@@ -17,6 +17,9 @@ for ns in pe1 p11 p12 p13 p21 p22 p23 p31 p32 p33 pe2; do
   ip netns exec $ns sysctl -w net.ipv6.conf.default.keep_addr_on_down=1
 done
 
+# vrf table id: 100 - 999 for ours
+# 1000-1999 for customers
+
 for ns in pe1 pe2; do
   echo create vrf srv6 in $ns
   ip -n $ns l add srv6 type vrf table 101
