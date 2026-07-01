@@ -66,56 +66,35 @@ for (( col=1; col<=NCOLS; col++ )) do
   done
 done
 
-for node in "${!node_addresses[@]}"; do
-  addr=${node_addresses[$node]}
-  echo "assign" "${addr}::/64" to $node
-  ip -n $node address add $addr::/64 dev lo
-done
 
-
-declare -A ptp_addresses
 for (( row=1; row<=NROWS; row++ )) do
   src_node=pe1
+  src_node_num=1
   src_region=${region_ids[$src_node]}
 
   dst_node="p${row}1"
   dst_region=${region_ids[$dst_node]}
+  dst_node_num="${row}"
 
-  lhs_addr=$(make_ptp_address $domain_global $src_region 1 $dst_region $row 0)
-  lhs_addr="$lhs_addr/127"
-  rhs_addr=$(make_ptp_address $domain_global $src_region 1 $dst_region $row 1)
-  rhs_addr="$rhs_addr/127"
-
+  lhs_addr="$(make_ptp_address $domain_global $src_region $src_node_num $dst_region $dst_node_num 0)/127"
+  rhs_addr="$(make_ptp_address $domain_global $src_region $src_node_num $dst_region $dst_node_num 1)/127"
   echo ptp address of $src_node "<->" "${dst_node}:" $lhs_addr "<->" $rhs_addr
-
-  key1="$src_node;$dst_node"
-  val1="$lhs_addr;$rhs_addr"
-  ptp_addresses[$key1]="$val1"
-
-  key2="$dst_node;$src_node"
-  val2="$rhs_addr;$lhs_addr"
-  ptp_addresses[$key2]="$val2"
+  ip -n $src_node address add $lhs_addr dev "v-$dst_node"
+  ip -n $dst_node address add $rhs_addr dev "v-$src_node"
 
   src_node="p${row}3"
+  src_node_num="${row}"
   src_region=${region_ids[$src_node]}
 
   dst_node="pe2"
+  dst_node_num=1
   dst_region=${region_ids[$dst_node]}
 
-  lhs_addr=$(make_ptp_address $domain_global $src_region $row $dst_region 1 0)
-  lhs_addr="$lhs_addr/127"
-  rhs_addr=$(make_ptp_address $domain_global $src_region $row $dst_region 1 1)
-  rhs_addr="$rhs_addr/127"
-
+  lhs_addr="$(make_ptp_address $domain_global $src_region $src_node_num $dst_region $dst_node_num 0)/127"
+  rhs_addr="$(make_ptp_address $domain_global $src_region $src_node_num $dst_region $dst_node_num 1)/127"
   echo ptp address of $src_node "<->" "${dst_node}:" $lhs_addr "<->" $rhs_addr
-
-  key1="$src_node;$dst_node"
-  val1="$lhs_addr;$rhs_addr"
-  ptp_addresses[$key1]="$val1"
-
-  key2="$dst_node;$src_node"
-  val2="$rhs_addr;$lhs_addr"
-  ptp_addresses[$key2]="$val2"
+  ip -n $src_node address add $lhs_addr dev "v-$dst_node"
+  ip -n $dst_node address add $rhs_addr dev "v-$src_node"
 
   for (( col=1; col<=NCOLS-1; col++ )) do
     src_node="p${row}${col}"
@@ -128,20 +107,18 @@ for (( row=1; row<=NROWS; row++ )) do
       dst_region=${region_ids[$dst_node]}
       dst_num="${dstRow}"
 
-      lhs_addr=$(make_ptp_address $domain_global $src_region $src_num $dst_region $dst_num 0)
-      lhs_addr="$lhs_addr/127"
-      rhs_addr=$(make_ptp_address $domain_global $src_region $src_num $dst_region $dst_num 1)
-      rhs_addr="$rhs_addr/127"
+      lhs_addr="$(make_ptp_address $domain_global $src_region $src_num $dst_region $dst_num 0)/127"
+      rhs_addr="$(make_ptp_address $domain_global $src_region $src_num $dst_region $dst_num 1)/127"
 
       echo ptp address of $src_node "<->" "${dst_node}:" $lhs_addr "<->" $rhs_addr
-
-      key1="$src_node;$dst_node"
-      val1="$lhs_addr;$rhs_addr"
-      ptp_addresses[$key1]="$val1"
-
-      key2="$dst_node;$src_node"
-      val2="$rhs_addr;$lhs_addr"
-      ptp_addresses[$key2]="$val2"
+      ip -n $src_node address add $lhs_addr dev "v-$dst_node"
+      ip -n $dst_node address add $rhs_addr dev "v-$src_node"
     done
   done
+done
+
+for node in "${!node_addresses[@]}"; do
+  addr=${node_addresses[$node]}
+  echo "assign" "${addr}::/64" to $node
+  ip -n $node address add $addr::/64 dev lo
 done
