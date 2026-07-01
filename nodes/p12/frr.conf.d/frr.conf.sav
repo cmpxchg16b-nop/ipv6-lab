@@ -3,6 +3,11 @@ frr defaults traditional
 hostname p12
 log stdout informational
 !
+interface lo
+ ipv6 ospf6 area 0
+ ipv6 ospf6 passive
+exit
+!
 interface v-p11
  ipv6 ospf6 area 0
  ipv6 ospf6 network point-to-point
@@ -25,6 +30,7 @@ exit
 !
 interface v-p31
  ipv6 ospf6 area 0
+ ipv6 ospf6 network point-to-point
 exit
 !
 interface v-p33

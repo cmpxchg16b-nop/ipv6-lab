@@ -1,33 +1,30 @@
 #!/bin/bash
 
-cat << EOF | podman exec -it frr-pe1 vtysh
+function enable-ospf6 {
+  local router_id=$1
+  echo "
 enable
 conf t
 !
 router ospf6
- ospf6 router-id 1.1.0.0
- log-adjacency-changes
+  ospf6 router-id $router_id
+  log-adjacency-changes
+  maximum-paths 1
+exit
+!
+int lo
+  ipv6 ospf6 area 0
+  ipv6 ospf6 passive
 exit
 !
 exit
 copy run start
 exit
-EOF
+"
+}
 
-
-cat << EOF | podman exec -it frr-pe2 vtysh
-enable
-conf t
-!
-router ospf6
- ospf6 router-id 5.1.0.0
- log-adjacency-changes
-exit
-!
-exit
-copy run start
-exit
-EOF
+enable-ospf6 1.1.0.0 | podman exec -it frr-pe1 vtysh
+enable-ospf6 5.1.0.0 | podman exec -it frr-pe2 vtysh
 
 NROWS=3
 NCOLS=3
@@ -35,19 +32,7 @@ for (( row=1; row<=NROWS; row++ )) do
   for (( col=1; col<=NCOLS; col++ )) do
     region=$((col+1))
     node_num=$row
-    cat << EOF | podman exec -it "frr-p${row}${col}" vtysh
-enable
-conf t
-!
-router ospf6
-  ospf6 router-id $region.$node_num.0.0
-  log-adjacency-changes
-exit
-!
-exit
-copy run start
-exit
-EOF
+    enable-ospf6 "$region.$node_num.0.0" | podman exec -it "frr-p${row}${col}" vtysh
   done
 done
 

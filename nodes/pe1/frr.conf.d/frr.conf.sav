@@ -5,6 +5,11 @@ log stdout informational
 !
 ip router-id 1.1.0.0
 !
+interface lo
+ ipv6 ospf6 area 0
+ ipv6 ospf6 passive
+exit
+!
 interface v-p11
  ipv6 ospf6 area 0.0.0.0
  ipv6 ospf6 network point-to-point
@@ -17,6 +22,7 @@ exit
 !
 interface v-p31
  ipv6 ospf6 area 0
+ ipv6 ospf6 network point-to-point
 exit
 !
 router ospf6
