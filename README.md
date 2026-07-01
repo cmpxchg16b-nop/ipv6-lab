@@ -169,12 +169,6 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 | `08-remove-node-directories.sh` | Deletes the staged `nodes/` config tree. |
 | `09-teardown-netns.sh` | Deletes the 11 core router namespaces. |
 
-> **Note:** `deinit.d/` predates the customer/SRv6 additions and only undoes the core
-> router setup. Deleting the `pe1`/`pe2` namespaces also disposes of their `srv6`/customer
-> VRFs and all SRv6 localsid/encap routes (everything lives inside those namespaces), but
-> the **`ce1`–`ce4` namespaces are not removed** — delete them explicitly if needed:
-> `for ns in ce1 ce2 ce3 ce4; do ip netns del "$ns"; done`.
-
 ## Running
 
 ```bash
