@@ -177,6 +177,7 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 | `07-create-customer-ns.sh` | Creates the `ce1`–`ce4` customer namespaces (IPv6 forwarding on). |
 | `08-connect-customer-ns.sh` | Connects each CE to its PE with a veth placed in a customer VRF (tables 1001/1002); assigns IPv4 loopbacks, `/30` interconnects, CE default gateways, and PE→CE routes. |
 | `09-srv6-encap.sh` | Installs the **SRv6 L3VPN**: `End.DT4` decap SIDs (`seg6local`) on each PE for tables 1001/1002, and `seg6 mode encap` routes in each customer VRF pointing at the remote PE's SID via the `srv6` VRF. |
+| `10-srv6-traffic-steering.sh` | **Traffic steering**: installs `End` (`seg6local`) SIDs on the transit P-routers and rewrites the org 1 / org 2 customer-VRF encap routes so their SRH visits those End SIDs before the remote PE's `End.DT4` SID (both directions). |
 
 ### `deinit.d/` — tear down
 

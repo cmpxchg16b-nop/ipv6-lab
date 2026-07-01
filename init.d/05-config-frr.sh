@@ -78,6 +78,12 @@ for (( row=1; row<=NROWS; row++ )) do
       dst_col=$((col+1))
       dst_node="p${dstRow}${dst_col}"
       conn-ospf6 "$src_node" "$dst_node"
+
+      if [ "$dstRow" != "$row" ]; then
+        dst_col=$col
+        dst_node="p${dstRow}${dst_col}"
+        conn-ospf6 "$src_node" "$dst_node"
+      fi
     done
   done
 done
