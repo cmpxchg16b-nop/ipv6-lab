@@ -168,6 +168,7 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 | `07-teardown-frr.sh` | Stops the 11 `frr-<node>` core containers (launched with `--rm`, so they self-remove). |
 | `08-remove-node-directories.sh` | Deletes the staged `nodes/` config tree. |
 | `09-teardown-netns.sh` | Deletes the 11 core router namespaces. |
+| `10-teardown-customer-netns.sh` | Delete the customers namespaces. |
 
 ## Running
 
