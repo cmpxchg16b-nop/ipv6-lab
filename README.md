@@ -11,6 +11,23 @@ The goal is the classic SRv6-VPN story: two customer organizations, each with a 
 both edges of the provider fabric, communicate through the provider using SRv6
 encapsulation. The PEs act as ingress (encap) and egress (decap) SRv6 endpoints.
 
+## Topology
+
+```
+┌──────┐      ┌────────┐    ┌──────────────────┐    ┌────────┐      ┌──────┐
+│ CE1  ├──────┤        │    │                  │    │        ├──────┤ CE2  │
+└──────┘      │  PE1   │    │ 3x3 P-routers    │    │  PE2   │      └──────┘
+              │        ├────┤                  ├────┤        │                
+              │        │    │     + OSPFv3     │    │        │              
+┌──────┐      │        │    │                  │    │        │      ┌──────┐
+│ CE3  ├──────┤        │    │                  │    │        ├──────┤ CE4  │
+└──────┘      └────────┘    └──────────────────┘    └────────┘      └──────┘
+```
+
+CE1↔CE2 are org 1 (table 1001); CE3↔CE4 are org 2 (table 1002). Each PE SRv6-encapsulates
+its sites' traffic across the OSPFv3 fabric to the other PE, which decapsulates into the
+matching customer table.
+
 ## Architecture: two planes
 
 The lab is split into an **underlay** (the provider fabric) and an **overlay** (the
