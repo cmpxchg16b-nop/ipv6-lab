@@ -101,7 +101,9 @@ flowchart TD
 ```
 
 The reverse direction (CE2 → CE1) is the mirror image, landing in PE1's table 1001.
-Org 2 (CE3 ↔ CE4) is identical but uses table 1002 and the `::1002` SIDs.
+Org 2 (CE3 ↔ CE4) reaches the same result but is **traffic-engineered through the P
+fabric**: its SRH lists transit `End` SIDs (`p11 → p31 → p33`) before the remote PE's
+`End.DT4`, steering the packet across specific core routers instead of going direct.
 
 ## Addressing
 
@@ -130,16 +132,35 @@ by shifting the 8-bit region and node IDs into a single hextet.
 
 ### SRv6 SIDs
 
-A SID is `<PE locator>::<function>`. The function hextet is a **mnemonic** for the
-customer table the egress PE must decap-and-lookup into; the actual table is bound by the
-`End.DT4 vrftable` argument, so the hextet only needs to be unique.
+A SID is a 128-bit IPv6 address laid out as **64-bit locator + 16-bit function code +
+48-bit argument**.
 
-| SID | Belongs to | Decaps into |
-| --- | --- | --- |
-| `2001:db8:1:101::1001` | PE1 (org 1) | table 1001 (`ce1`) |
-| `2001:db8:1:101::1002` | PE1 (org 2) | table 1002 (`ce3`) |
-| `2001:db8:1:501::1001` | PE2 (org 1) | table 1001 (`ce2`) |
-| `2001:db8:1:501::1002` | PE2 (org 2) | table 1002 (`ce4`) |
+- **Locators (64 bits)** — the node that owns the SID:
+  - PE locators `2001:db8:1:101` (`pe1`) and `2001:db8:1:501` (`pe2`), on the `srv6` VRF;
+  - P-router locators `2001:db8:1:<region><node>` (e.g. `p11` → `2001:db8:1:201`), on `lo`.
+- **Function codes (16 bits)** — the SRv6 behavior. Two are used:
+  - `0` → **`End.DT4`** on the egress PE: decap the inner IPv4 and look it up in a customer VRF;
+  - `1` → **`End`** on every transit P-router: pop the SRH active segment and forward to the next.
+- **Arguments (48 bits)** — a per-function parameter:
+  - `End.DT4` → the **target customer table id** (`0x1001`/`0x1002`, written as the hextet
+    `1001`/`1002`) carried as a mnemonic; the real binding comes from the
+    `End.DT4 vrftable` argument, so the value only needs to be unique.
+  - `End` → `0` (unused).
+
+The SIDs in use:
+
+| SID | Locator | Function | Argument |
+| --- | --- | --- | --- |
+| `2001:db8:1:101::1001` | pe1 | `0` `End.DT4` | `0:0:1001` → table 1001 (`ce1`) |
+| `2001:db8:1:101::1002` | pe1 | `0` `End.DT4` | `0:0:1002` → table 1002 (`ce3`) |
+| `2001:db8:1:501::1001` | pe2 | `0` `End.DT4` | `0:0:1001` → table 1001 (`ce2`) |
+| `2001:db8:1:501::1002` | pe2 | `0` `End.DT4` | `0:0:1002` → table 1002 (`ce4`) |
+| `2001:db8:1:201:1::` | p11 | `1` `End` | `0` |
+| `2001:db8:1:203:1::` | p31 | `1` `End` | `0` |
+| `2001:db8:1:403:1::` | p33 | `1` `End` | `0` |
+
+Every P-router gets an `End` SID (`2001:db8:1:<region><node>:1::`); only `p11`, `p31`,
+`p33` are placed in org 2's segment list.
 
 ### Customer IPv4 (overlay plane)
 
@@ -176,8 +197,8 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 | `06-ping-all.sh` | Sanity-checks underlay reachability by pinging every locator from PE1 inside the `srv6` VRF. |
 | `07-create-customer-ns.sh` | Creates the `ce1`–`ce4` customer namespaces (IPv6 forwarding on). |
 | `08-connect-customer-ns.sh` | Connects each CE to its PE with a veth placed in a customer VRF (tables 1001/1002); assigns IPv4 loopbacks, `/30` interconnects, CE default gateways, and PE→CE routes. |
-| `09-srv6-encap.sh` | Installs the **SRv6 L3VPN**: `End.DT4` decap SIDs (`seg6local`) on each PE for tables 1001/1002, and `seg6 mode encap` routes in each customer VRF pointing at the remote PE's SID via the `srv6` VRF. |
-| `10-srv6-traffic-steering.sh` | **Traffic steering**: installs `End` (`seg6local`) SIDs on the transit P-routers and rewrites the org 1 / org 2 customer-VRF encap routes so their SRH visits those End SIDs before the remote PE's `End.DT4` SID (both directions). |
+| `09-programming-srv6-dataplane.sh` | Programs the SRv6 **data plane (local SIDs)**: installs `End.DT4` decap SIDs (`seg6local`) on each PE for tables 1001/1002, and an `End` SID on every transit P-router so traffic-engineered paths can steer through it. |
+| `10-setup-pe-srv6-routes.sh` | Installs the **ingress encap routes** in the customer VRFs (`seg6 mode encap` … `dev srv6`): org 1 is a direct single-segment path PE1↔PE2, while org 2 is steered through the P fabric (`p11 → p31 → p33`) via the transit `End` SIDs before the remote PE's `End.DT4`. Also adds a policy-routing rule to activate the SID table. |
 
 ### `deinit.d/` — tear down
 
@@ -194,9 +215,8 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 # bring up (run init.d in order)
 for s in init.d/*.sh; do bash "$s"; done
 
-# tear down (run deinit.d in order), plus the customer namespaces
+# tear down (run deinit.d in order; 10-teardown-customer-netns.sh removes ce1–ce4)
 for s in deinit.d/*.sh; do bash "$s"; done
-for ns in ce1 ce2 ce3 ce4; do ip netns del "$ns"; done
 ```
 
 > Requires root (for `ip netns`/VRFs), Podman, and the `frrouting/frr:10.6.1` image.

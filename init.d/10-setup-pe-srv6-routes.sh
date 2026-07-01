@@ -38,11 +38,14 @@ domain_global="2001:db8:1"
 pe1_loc=$(make_address $domain_global 1 1)   # 2001:db8:1:101
 pe2_loc=$(make_address $domain_global 5 1)   # 2001:db8:1:501
 
-# A SID = <locator 64bits><function 16bits>:<arg 48bits>. We use the function hextet as a mnemonic for the
-# customer table the egress PE must decap-and-lookup into. The actual table is set
-# by the End.DT4 'vrftable' argument; the hextet only needs to be unique.
-#   ::1001 == "0:0:0:1001"  ->  function code 0, arg vrftable 1001  (org 1)
-#   ::1002 == "0:0:0:1001"  ->  function code 0, arg vrftable 1002  (org 2)
+# A SID is a 128-bit IPv6 address: <locator 64bits><function 16bits><arg 48bits>.
+# For the PE End.DT4 SIDs defined here:
+#   - function code 0 -> End.DT4 (decap inner IPv4, look it up in a VRF table);
+#   - the 48-bit argument carries the target customer table id (0x1001 / 0x1002) in
+#     its low 16 bits as a mnemonic. The actual table is bound by the End.DT4
+#     'vrftable' argument, so the value only needs to be unique.
+#   ::1001 == "0:0:0:1001" -> function 0 (End.DT4), arg 0:0:1001 (table 1001)
+#   ::1002 == "0:0:0:1002" -> function 0 (End.DT4), arg 0:0:1002 (table 1002)
 pe1_sid_1001="${pe1_loc}::1001"   # 2001:db8:1:101::1001
 pe1_sid_1002="${pe1_loc}::1002"   # 2001:db8:1:101::1002
 pe2_sid_1001="${pe2_loc}::1001"   # 2001:db8:1:501::1001
