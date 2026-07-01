@@ -1,0 +1,91 @@
+#!/bin/bash
+
+cat << EOF | podman exec -it frr-pe1 vtysh
+enable
+conf t
+!
+router ospf6
+ ospf6 router-id 1.1.0.0
+ log-adjacency-changes
+exit
+!
+exit
+copy run start
+exit
+EOF
+
+
+cat << EOF | podman exec -it frr-pe2 vtysh
+enable
+conf t
+!
+router ospf6
+ ospf6 router-id 5.1.0.0
+ log-adjacency-changes
+exit
+!
+exit
+copy run start
+exit
+EOF
+
+NROWS=3
+NCOLS=3
+for (( row=1; row<=NROWS; row++ )) do
+  for (( col=1; col<=NCOLS; col++ )) do
+    region=$((col+1))
+    node_num=$row
+    cat << EOF | podman exec -it "frr-p${row}${col}" vtysh
+enable
+conf t
+!
+router ospf6
+  ospf6 router-id $region.$node_num.0.0
+  log-adjacency-changes
+exit
+!
+exit
+copy run start
+exit
+EOF
+  done
+done
+
+function en-ospf-if {
+  local dst_node=$1
+  echo "!
+enable
+conf t
+!
+int v-$dst_node
+ ipv6 ospf6 area 0
+ ipv6 ospf6 network point-to-point
+exit
+!
+exit
+copy run start
+exit
+"
+}
+
+function conn-ospf6 {
+  local src_node=$1
+  local dst_node=$2
+
+  en-ospf-if $dst_node | podman exec -it "frr-${src_node}" vtysh
+  en-ospf-if $src_node | podman exec -it "frr-${dst_node}" vtysh
+}
+
+for (( row=1; row<=NROWS; row++ )) do
+  conn-ospf6 pe1 "p${row}1"
+  conn-ospf6 "p${row}3" pe2
+
+  for (( col=1; col<=NCOLS-1; col++ )) do
+    src_node="p${row}${col}"
+    for (( dstRow=1; dstRow<=NROWS; dstRow++ )) do
+      dst_col=$((col+1))
+      dst_node="p${dstRow}${dst_col}"
+      conn-ospf6 "$src_node" "$dst_node"
+    done
+  done
+done
