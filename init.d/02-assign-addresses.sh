@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo Running $0
+
 # format: <domain_id>:<region_id(8bits)><node_id(8bits)>
 function make_address {
   local domain_id=$1

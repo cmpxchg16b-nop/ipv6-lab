@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo Running $0
+
 function conn {
   ip l add v-$2 netns $1 type veth peer v-$1 netns $2
   ip -n $1 l set v-$2 up
