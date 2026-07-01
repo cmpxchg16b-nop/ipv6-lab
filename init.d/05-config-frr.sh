@@ -16,7 +16,6 @@ conf t
 router ospf6 $vrf_specifier
   ospf6 router-id $router_id
   log-adjacency-changes
-  maximum-paths 1
 exit
 !
 int $lo_intf

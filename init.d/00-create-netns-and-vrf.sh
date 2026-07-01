@@ -15,6 +15,7 @@ for ns in pe1 p11 p12 p13 p21 p22 p23 p31 p32 p33 pe2; do
   ip netns exec $ns sysctl -w net.ipv6.conf.default.seg6_require_hmac=0
   ip netns exec $ns sysctl -w net.ipv6.conf.all.keep_addr_on_down=1
   ip netns exec $ns sysctl -w net.ipv6.conf.default.keep_addr_on_down=1
+  ip netns exec $ns sysctl -w net.ipv6.conf.lo.seg6_enabled=1
 done
 
 # vrf table id: 100 - 999 for ours

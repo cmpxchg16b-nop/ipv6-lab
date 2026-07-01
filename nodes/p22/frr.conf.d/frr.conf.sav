@@ -51,6 +51,5 @@ exit
 router ospf6
  ospf6 router-id 3.2.0.0
  log-adjacency-changes
- maximum-paths 1
 exit
 !
