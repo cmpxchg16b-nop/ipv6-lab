@@ -19,8 +19,8 @@ ip netns exec pe1 ping -c1 "${pe2}::"
 
 NROWS=3
 NCOLS=3
-for (( row=1; row<=NROWS; row++ )) do
-  for (( col=1; col<=NCOLS; col++ )) do
+for (( col=2; col<=NCOLS+1; col++ )) do
+  for (( row=1; row<=NROWS; row++ )) do
     dst_addr=$(make_address $domain_global $col $row)
     ip netns exec pe1 ping -c1 "${dst_addr}::"
   done
