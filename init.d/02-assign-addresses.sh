@@ -121,6 +121,11 @@ done
 
 for node in "${!node_addresses[@]}"; do
   addr=${node_addresses[$node]}
-  echo "assign" "${addr}::/64" to $node
-  ip -n $node address add $addr::/64 dev lo
+  if [ "$node" = "pe1" ] || [ "$node" = "pe2" ]; then
+    ip -n $node address add "${addr}::/64" dev srv6
+    echo "assign" "${addr}::/64" to $node srv6 vrf lookback
+    continue
+  fi
+  echo "assign" "${addr}::/64" to $node loopback
+  ip -n $node address add "${addr}::/64" dev lo
 done

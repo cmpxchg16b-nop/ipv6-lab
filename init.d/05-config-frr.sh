@@ -2,17 +2,24 @@
 
 function enable-ospf6 {
   local router_id=$1
+  local vrf_specifier=""
+  local lo_intf="lo"
+  if [ -n "$2" ]; then
+    vrf_specifier="vrf $2"
+    lo_intf="$2"
+  fi
+
   echo "
 enable
 conf t
 !
-router ospf6
+router ospf6 $vrf_specifier
   ospf6 router-id $router_id
   log-adjacency-changes
   maximum-paths 1
 exit
 !
-int lo
+int $lo_intf
   ipv6 ospf6 area 0
   ipv6 ospf6 passive
 exit
@@ -23,8 +30,8 @@ exit
 "
 }
 
-enable-ospf6 1.1.0.0 | podman exec -it frr-pe1 vtysh
-enable-ospf6 5.1.0.0 | podman exec -it frr-pe2 vtysh
+enable-ospf6 1.1.0.0 srv6 | podman exec -it frr-pe1 vtysh
+enable-ospf6 5.1.0.0 srv6 | podman exec -it frr-pe2 vtysh
 
 NROWS=3
 NCOLS=3
