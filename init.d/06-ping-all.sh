@@ -1,0 +1,27 @@
+#!/bin/bash
+
+# format: <domain_id>:<region_id(8bits)><node_id(8bits)>
+function make_address {
+  local domain_id=$1
+  local region_id=$2
+  local node_id=$3
+  local uniq_node_id=$(( (region_id << 8) + node_id ))
+  printf "%s:%x" $domain_id $uniq_node_id
+}
+
+domain_global="2001:db8:1"
+
+pe1=$(make_address $domain_global 1 1)
+pe2=$(make_address $domain_global 5 1)
+
+ip netns exec pe1 ping -c1 "${pe1}::"
+ip netns exec pe1 ping -c1 "${pe2}::"
+
+NROWS=3
+NCOLS=3
+for (( row=1; row<=NROWS; row++ )) do
+  for (( col=1; col<=NCOLS; col++ )) do
+    dst_addr=$(make_address $domain_global $col $row)
+    ip netns exec pe1 ping -c1 "${dst_addr}::"
+  done
+done
