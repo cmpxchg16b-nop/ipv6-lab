@@ -1,0 +1,19 @@
+frr version 10.6.1_git
+frr defaults traditional
+hostname ce6
+log stdout informational
+!
+router bgp 65001
+ bgp router-id 169.254.2.101
+ no bgp default ipv4-unicast
+ neighbor 10.0.1.2 remote-as 65002
+ !
+ address-family ipv4 unicast
+  network 10.0.1.0/24
+  neighbor 10.0.1.2 activate
+ exit-address-family
+exit
+!
+router bgp 65001 vrf 10.0.1.2
+exit
+!

@@ -24,9 +24,11 @@ function conn_from_vrf_to_customer {
 
 conn_from_vrf_to_customer ce1 1001 pe1 ce1
 conn_from_vrf_to_customer ce3 1002 pe1 ce3
+conn_from_vrf_to_customer ce5 1003 pe1 ce5
 
 conn_from_vrf_to_customer ce2 1001 pe2 ce2
 conn_from_vrf_to_customer ce4 1002 pe2 ce4
+conn_from_vrf_to_customer ce6 1003 pe2 ce6
 
 # you can test them via:
 # ip netns exec ce1 ping ff02::1%v-pe1
@@ -71,12 +73,16 @@ assign_ce_loopback ce1 10.0.0.4/24
 assign_ce_loopback ce2 10.0.1.4/24
 assign_ce_loopback ce3 10.0.0.4/24
 assign_ce_loopback ce4 10.0.1.4/24
+assign_ce_loopback ce5 10.0.0.4/24
+assign_ce_loopback ce6 10.0.1.4/24
 
 assign_ce_interconnect pe1 ce1 10.0.0.2/30 10.0.0.1/30
 assign_ce_interconnect pe1 ce3 10.0.0.2/30 10.0.0.1/30
+assign_ce_interconnect pe1 ce5 10.0.0.2/30 10.0.0.1/30
 
 assign_ce_interconnect pe2 ce2 10.0.1.2/30 10.0.1.1/30
 assign_ce_interconnect pe2 ce4 10.0.1.2/30 10.0.1.1/30
+assign_ce_interconnect pe2 ce6 10.0.1.2/30 10.0.1.1/30
 
 # assign gateway to ce (let CEx use PEx as gateway)
 function assign_gw_ce {
@@ -89,6 +95,7 @@ assign_gw_ce ce1 10.0.0.2
 assign_gw_ce ce3 10.0.0.2
 assign_gw_ce ce2 10.0.1.2
 assign_gw_ce ce4 10.0.1.2
+# for ce5, ce6, they use BGP, so no static routes would configure for them
 
 # assign route to ce
 function assign_ce_route {
@@ -105,6 +112,7 @@ assign_ce_route pe1 ce1 ce1 10.0.0.0/24 10.0.0.1
 assign_ce_route pe1 ce3 ce3 10.0.0.0/24 10.0.0.1
 assign_ce_route pe2 ce2 ce2 10.0.1.0/24 10.0.1.1
 assign_ce_route pe2 ce4 ce4 10.0.1.0/24 10.0.1.1
+# for ce5, ce6, they use BGP, so no static routes would configure for them
 
 # validate these with:
 # ip netns exec pe1 ip vrf exec ce1 ping 10.0.0.4

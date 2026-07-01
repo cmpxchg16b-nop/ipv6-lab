@@ -2,7 +2,7 @@
 
 echo Running $0
 
-for ns in ce1 ce2 ce3 ce4; do
+for ns in ce1 ce2 ce3 ce4 ce5 ce6; do
   echo create $ns
   ip netns add $ns
   ip -n $ns l set lo up

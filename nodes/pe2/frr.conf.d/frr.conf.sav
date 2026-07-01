@@ -3,6 +3,15 @@ frr defaults traditional
 hostname pe2
 log stdout informational
 !
+vrf ce2
+exit-vrf
+!
+vrf ce4
+exit-vrf
+!
+vrf ce6
+exit-vrf
+!
 vrf srv6
 exit-vrf
 !
@@ -19,6 +28,24 @@ exit
 interface v-p23
  ipv6 ospf6 area 0
  ipv6 ospf6 network point-to-point
+exit
+!
+interface v-p33
+ ipv6 ospf6 area 0
+ ipv6 ospf6 network point-to-point
+exit
+!
+router bgp 65002 vrf ce6
+ bgp router-id 169.254.2.102
+ no bgp default ipv4-unicast
+ neighbor 10.0.1.1 remote-as 65001
+ !
+ address-family ipv4 unicast
+  neighbor 10.0.1.1 activate
+ exit-address-family
+exit
+!
+router bgp 65002 vrf 10.0.1.1
 exit
 !
 router ospf6 vrf srv6
