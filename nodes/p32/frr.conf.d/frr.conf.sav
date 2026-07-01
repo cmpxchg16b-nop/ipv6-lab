@@ -33,13 +33,9 @@ interface v-p31
  ipv6 ospf6 network point-to-point
 exit
 !
-interface v-p33
- ipv6 ospf6 area 0
- ipv6 ospf6 network point-to-point
-exit
-!
 router ospf6
  ospf6 router-id 3.3.0.0
  log-adjacency-changes
+ maximum-paths 1
 exit
 !
