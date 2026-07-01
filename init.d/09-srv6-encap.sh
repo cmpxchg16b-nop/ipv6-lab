@@ -36,11 +36,11 @@ domain_global="2001:db8:1"
 pe1_loc=$(make_address $domain_global 1 1)   # 2001:db8:1:101
 pe2_loc=$(make_address $domain_global 5 1)   # 2001:db8:1:501
 
-# A SID = <locator>::<function>. We use the function hextet as a mnemonic for the
+# A SID = <locator 64bits><function 16bits>:<arg 48bits>. We use the function hextet as a mnemonic for the
 # customer table the egress PE must decap-and-lookup into. The actual table is set
 # by the End.DT4 'vrftable' argument; the hextet only needs to be unique.
-#   ::1001  ->  vrftable 1001  (org 1)
-#   ::1002  ->  vrftable 1002  (org 2)
+#   ::1001 == "0:0:0:1001"  ->  function code 0, arg vrftable 1001  (org 1)
+#   ::1002 == "0:0:0:1001"  ->  function code 0, arg vrftable 1002  (org 2)
 pe1_sid_1001="${pe1_loc}::1001"   # 2001:db8:1:101::1001
 pe1_sid_1002="${pe1_loc}::1002"   # 2001:db8:1:101::1002
 pe2_sid_1001="${pe2_loc}::1001"   # 2001:db8:1:501::1001
@@ -58,6 +58,15 @@ function install_decap_sid {
   local ce_vrf=$4     # customer VRF name
   echo "  decap $node  sid ${sid}/128  ->  table $table_id"
   ip -n "$node" route add "${sid}/128" vrf srv6 encap seg6local action End.DT4 vrftable $table_id dev $ce_vrf
+}
+
+# Install an End localsid on a transit P-router: the basic SRv6 endpoint that
+# advances the SRH to the next segment and forwards toward it.
+function install_end_sid {
+  local node=$1       # p11 / p12 / ... / p33
+  local sid=$2        # full SID  (<locator>:1:0  -> function 1, arg 0)
+  echo "  end   $node  sid ${sid}/128"
+  ip -n "$node" route add "${sid}/128" encap seg6local action End dev lo
 }
 
 # Install an ingress seg6 encap route in a customer VRF toward an egress PE SID.
@@ -80,6 +89,27 @@ install_decap_sid pe1 "$pe1_sid_1002" 1002 ce3   # -> table 1002 (ce3)
 install_decap_sid pe2 "$pe2_sid_1001" 1001 ce2  # -> table 1001 (ce2)
 install_decap_sid pe2 "$pe2_sid_1002" 1002 ce4  # -> table 1002 (ce4)
 
+# ---- transit P-routers: install End localsids ------------------------------
+# The End behavior is the basic SRv6 transit endpoint: it pops the SRH's active
+# segment and forwards to the next. Every P-router gets one so traffic-engineered
+# paths can steer through it.
+#
+# SID = <locator 64bits>:<function 16bits>:<arg 48bits>
+#   function code 0  -> End.DT4  (already taken by the PEs)
+#   function code 1  -> End      (transit P-routers)
+#   arg 0 (the whole 48-bit field) -> unused for End.
+NROWS=3
+NCOLS=3
+for (( col=1; col<=NCOLS; col++ )); do
+  for (( row=1; row<=NROWS; row++ )); do
+    node="p${row}${col}"
+    region=$((col+1))                       # column 1->region 2, 2->3, 3->4
+    p_loc=$(make_address $domain_global $region $row)
+    p_end_sid="${p_loc}:1::"                 # <locator>:<func 1>:<arg 0 0 0>
+    install_end_sid "$node" "$p_end_sid"
+  done
+done
+
 # ---- ingress PE: install the seg6 encap routes in the customer VRFs ---------
 # mode encap wraps the inner IPv4 packet in an outer IPv6/SRH destined to the
 # egress PE's SID, then emits the outer packet via the srv6 VRF (table 101) for
@@ -101,7 +131,8 @@ ip -6 -n pe2 rule add to 2001:db8:1::/48 lookup 101
 # -----------------------------------------------------------------------------
 # verify (run by hand):
 #
-#   localsids:        ip -n pe1 -6 route show table local | grep -i seg6local
+#   localsids (PE):   ip -n pe1 -6 route show table local | grep -i seg6local
+#   localsids (P):    ip -n p11 -6 route show table local | grep -i seg6local
 #   encap routes:     ip -n pe1 route show vrf ce1
 #
 #   end-to-end (org 1):  ip netns exec ce1 ping 10.0.1.4   # ce1 lo -> ce2 lo
