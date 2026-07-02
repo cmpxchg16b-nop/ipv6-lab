@@ -9,6 +9,8 @@
 # PE1 is the upstream of CE1, CE1 is a customer
 function config-pe1 {
   echo "
+enable
+configure terminal
 ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
 ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
 ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
@@ -63,13 +65,17 @@ segment-routing
  !
 exit
 !
-end
+exit
+!
+exit
 "
 }
 
 # PE2 is the upstream of CE2, CE2 is a customer
 function config-pe2 {
   echo "
+enable
+configure terminal
 ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
 ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
 ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
@@ -124,12 +130,16 @@ segment-routing
  !
 exit
 !
-end
+exit
+!
+exit
 "
 }
 
 function config-ce5 {
   echo "
+enable
+configure terminal
 ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
 ip prefix-list allow-self seq 5 permit 10.0.0.0/24 ge 24 le 24
 !
@@ -147,12 +157,16 @@ router bgp 65001
  exit-address-family
 exit
 !
-end
+exit
+!
+exit
 "
 }
 
 function config-ce6 {
   echo "
+enable
+configure terminal
 ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
 ip prefix-list allow-self seq 5 permit 10.0.1.0/24 ge 24 le 24
 !
@@ -170,7 +184,9 @@ router bgp 65001
  exit-address-family
 exit
 !
-end
+exit
+!
+exit
 "
 }
 
