@@ -28,6 +28,7 @@ function make_ptp_address {
 }
 
 domain_global="2001:db8:1"
+domain_sid="2001:db8:2"
 
 declare -A region_ids
 last_region_id=1
@@ -129,3 +130,8 @@ for node in "${!node_addresses[@]}"; do
   echo "assign" "${addr}::/64" to $node loopback
   ip -n $node address add "${addr}::/64" dev lo
 done
+
+region=${region_ids["pe1"]}
+ip -n pe1 address add "$(make_address $region 1)::/64" dev srv6
+region=${region_ids["pe2"]}
+ip -n pe2 address add "$(make_address $region 1)::/64" dev srv6

@@ -3,6 +3,10 @@ frr defaults traditional
 hostname pe2
 log stdout informational
 !
+ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
+ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
+ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
+!
 vrf ce2
 exit-vrf
 !
@@ -42,6 +46,8 @@ router bgp 65002 vrf ce6
  !
  address-family ipv4 unicast
   neighbor 10.0.1.1 activate
+  neighbor 10.0.1.1 prefix-list allow-in in
+  neighbor 10.0.1.1 prefix-list allow-out out
  exit-address-family
 exit
 !

@@ -59,3 +59,16 @@ router ospf6 vrf srv6
  log-adjacency-changes
 exit
 !
+segment-routing
+ srv6
+  locators
+   locator main
+    prefix 2001:db8:2:101::/64 block-len 48 node-len 16
+   exit
+   !
+  exit
+  !
+ exit
+ !
+exit
+!

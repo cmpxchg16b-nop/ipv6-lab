@@ -88,8 +88,11 @@ install_encap_route pe2 ce4 10.0.0.0/24 "$p33_end,$p31_end,$p11_end,$pe1_sid_100
 
 # linux SRv6 hack: you must explictly activate the SID table with policy-based routing:
 # see: https://segment-routing.org/index.php/Implementation/AdvancedConf
+# currently, we use two SID prefixes 2001:db8:{1,2}::/48
 ip -6 -n pe1 rule add to 2001:db8:1::/48 lookup 101
 ip -6 -n pe2 rule add to 2001:db8:1::/48 lookup 101
+ip -6 -n pe1 rule add to 2001:db8:2::/48 lookup 101
+ip -6 -n pe2 rule add to 2001:db8:2::/48 lookup 101
 
 # -----------------------------------------------------------------------------
 # verify (run by hand):
