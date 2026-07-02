@@ -3,6 +3,19 @@ frr defaults traditional
 hostname pe1
 log stdout informational
 !
+ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
+ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
+ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
+!
+vrf ce1
+exit-vrf
+!
+vrf ce3
+exit-vrf
+!
+vrf ce5
+exit-vrf
+!
 interface lo
  ipv6 ospf6 area 0
  ipv6 ospf6 passive
@@ -18,8 +31,67 @@ interface v-p21
  ipv6 ospf6 network point-to-point
 exit
 !
+interface v-p31
+ ipv6 ospf6 area 0
+ ipv6 ospf6 network point-to-point
+exit
+!
+router bgp 65002 vrf ce5
+ bgp router-id 169.254.1.102
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ no bgp network import-check
+ neighbor 10.0.0.1 remote-as 65001
+ !
+ address-family ipv4 unicast
+  redistribute connected
+  neighbor 10.0.0.1 activate
+  neighbor 10.0.0.1 prefix-list allow-in in
+  neighbor 10.0.0.1 prefix-list allow-out out
+  sid vpn export auto
+  rd vpn export 65001:1003
+  rt vpn both 65001:1003
+  export vpn
+  import vpn
+ exit-address-family
+exit
+!
+router bgp 65002
+ bgp router-id 1.1.0.0
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ no bgp network import-check
+ neighbor 2001:db8:2:501:: remote-as 65002
+ neighbor 2001:db8:2:501:: update-source 2001:db8:2:101::
+ neighbor 2001:db8:2:501:: capability extended-nexthop
+ !
+ segment-routing srv6
+  locator main
+ exit
+ !
+ address-family ipv4 vpn
+  neighbor 2001:db8:2:501:: activate
+ exit-address-family
+exit
+!
 router ospf6
  ospf6 router-id 1.1.0.0
  log-adjacency-changes
+exit
+!
+segment-routing
+ srv6
+  encapsulation
+   source-address 2001:db8:2:101::
+  exit
+  locators
+   locator main
+    prefix 2001:db8:2:101::/64 block-len 48 node-len 16
+   exit
+   !
+  exit
+  !
+ exit
+ !
 exit
 !

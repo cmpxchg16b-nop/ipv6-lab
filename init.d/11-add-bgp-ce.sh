@@ -21,6 +21,7 @@ conf t
 router bgp $asn $vrf_specifier
   bgp router-id $router_id
   no bgp default ipv4-unicast
+  no bgp ebgp-requires-policy
 exit
 !
 exit
@@ -110,6 +111,7 @@ ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
 !
 router bgp $bgp_selector vrf $vrf
   address-family ipv4 unicast
+    neighbor $neighbor activate
     neighbor $neighbor prefix-list allow-in in
     neighbor $neighbor prefix-list allow-out out
   exit-address-family
