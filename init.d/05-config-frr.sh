@@ -29,8 +29,8 @@ exit
 "
 }
 
-enable-ospf6 1.1.0.0 srv6 | podman exec -it frr-pe1 vtysh
-enable-ospf6 5.1.0.0 srv6 | podman exec -it frr-pe2 vtysh
+enable-ospf6 1.1.0.0 | podman exec -it frr-pe1 vtysh
+enable-ospf6 5.1.0.0 | podman exec -it frr-pe2 vtysh
 
 NROWS=3
 NCOLS=3

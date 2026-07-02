@@ -31,7 +31,7 @@ function make_address {
 
 domain_global="2001:db8:1"
 
-# PE SRv6 locators (the /64 advertised into the underlay, sitting on the srv6 VRF).
+# PE SRv6 locators (the /64 advertised into the underlay, sitting on the default VRF).
 pe1_loc=$(make_address $domain_global 1 1)   # 2001:db8:1:101
 pe2_loc=$(make_address $domain_global 5 1)   # 2001:db8:1:501
 
@@ -59,7 +59,7 @@ function install_decap_sid {
   local table_id=$3   # customer VRF table to decap into (1001 / 1002)
   local ce_vrf=$4     # customer VRF name
   echo "  decap $node  sid ${sid}/128  ->  table $table_id"
-  ip -n "$node" route add "${sid}/128" vrf srv6 encap seg6local action End.DT4 vrftable $table_id dev $ce_vrf
+  ip -n "$node" route add "${sid}/128" encap seg6local action End.DT4 vrftable $table_id dev $ce_vrf
 }
 
 # Install an End localsid on a transit P-router: the basic SRv6 endpoint that

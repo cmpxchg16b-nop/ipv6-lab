@@ -122,16 +122,11 @@ done
 
 for node in "${!node_addresses[@]}"; do
   addr=${node_addresses[$node]}
-  if [ "$node" = "pe1" ] || [ "$node" = "pe2" ]; then
-    ip -n $node address add "${addr}::/64" dev srv6
-    echo "assign" "${addr}::/64" to $node srv6 vrf lookback
-    continue
-  fi
   echo "assign" "${addr}::/64" to $node loopback
   ip -n $node address add "${addr}::/64" dev lo
 done
 
 region=${region_ids["pe1"]}
-ip -n pe1 address add "$(make_address $region 1)::/64" dev srv6
+ip -n pe1 address add "$(make_address $domain_sid $region 1)::/64" dev lo
 region=${region_ids["pe2"]}
-ip -n pe2 address add "$(make_address $region 1)::/64" dev srv6
+ip -n pe2 address add "$(make_address $domain_sid $region 1)::/64" dev lo

@@ -72,7 +72,7 @@ function install_encap_route {
   local subnet=$3     # remote customer subnet to reach
   local segs=$4       # comma-separated SID list (transit End SIDs ... decap SID)
   echo "  encap $node  vrf $vrf  $subnet  ->  $segs"
-  ip -n "$node" route add "$subnet" vrf "$vrf" encap seg6 mode encap segs "$segs" dev srv6
+  ip -n "$node" route add "$subnet" vrf "$vrf" encap seg6 mode encap segs "$segs" dev lo
 }
 
 # ---- ingress PE: install the seg6 encap routes in the customer VRFs ---------
@@ -85,14 +85,6 @@ install_encap_route pe2 ce2 10.0.0.0/24 "$pe1_sid_1001"            # ce2 -> ce1 
 #   PE1 -> p11 -> p31 -> p33 -> PE2   (and the reverse for ce4 -> ce3).
 install_encap_route pe1 ce3 10.0.1.0/24 "$p11_end,$p31_end,$p33_end,$pe2_sid_1002"   # ce3 -> ce4
 install_encap_route pe2 ce4 10.0.0.0/24 "$p33_end,$p31_end,$p11_end,$pe1_sid_1002"   # ce4 -> ce3
-
-# linux SRv6 hack: you must explictly activate the SID table with policy-based routing:
-# see: https://segment-routing.org/index.php/Implementation/AdvancedConf
-# currently, we use two SID prefixes 2001:db8:{1,2}::/48
-ip -6 -n pe1 rule add to 2001:db8:1::/48 lookup 101
-ip -6 -n pe2 rule add to 2001:db8:1::/48 lookup 101
-ip -6 -n pe1 rule add to 2001:db8:2::/48 lookup 101
-ip -6 -n pe2 rule add to 2001:db8:2::/48 lookup 101
 
 # -----------------------------------------------------------------------------
 # verify (run by hand):
