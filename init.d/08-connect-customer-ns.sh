@@ -2,11 +2,12 @@
 
 echo Running $0
 
-function conn_from_vrf_to_customer {
+function conn_customer_to_provider {
   local vrf="$1"
   local table_id="$2"
   local src="$3"
   local dst="$4"
+  local mtu="$5"
 
   local lhs_if="v-$dst"
   local rhs_if="v-$src"
@@ -22,13 +23,13 @@ function conn_from_vrf_to_customer {
 
 # note: vrf/table_id is local to router so they are reusable global-wide
 
-conn_from_vrf_to_customer ce1 1001 pe1 ce1
-conn_from_vrf_to_customer ce3 1002 pe1 ce3
-conn_from_vrf_to_customer ce5 1003 pe1 ce5
+conn_customer_to_provider ce1 1001 pe1 ce1 1280
+conn_customer_to_provider ce3 1002 pe1 ce3 1280
+conn_customer_to_provider ce5 1003 pe1 ce5 1280
 
-conn_from_vrf_to_customer ce2 1001 pe2 ce2
-conn_from_vrf_to_customer ce4 1002 pe2 ce4
-conn_from_vrf_to_customer ce6 1003 pe2 ce6
+conn_customer_to_provider ce2 1001 pe2 ce2 1280
+conn_customer_to_provider ce4 1002 pe2 ce4 1280
+conn_customer_to_provider ce6 1003 pe2 ce6 1280
 
 # you can test them via:
 # ip netns exec ce1 ping ff02::1%v-pe1
