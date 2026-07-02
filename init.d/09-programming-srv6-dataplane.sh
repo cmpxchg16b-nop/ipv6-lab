@@ -31,22 +31,24 @@ function make_address {
 
 domain_global="2001:db8:1"
 
+func_code_0_end_dt4=""
+func_code_1_end="1"
+func_code_2_end_dt6="2"
+
 # PE SRv6 locators (the /64 advertised into the underlay, sitting on the default VRF).
 pe1_loc=$(make_address $domain_global 1 1)   # 2001:db8:1:101
 pe2_loc=$(make_address $domain_global 5 1)   # 2001:db8:1:501
 
 # A SID is a 128-bit IPv6 address: <locator 64bits><function 16bits><arg 48bits>.
-# For the PE End.DT4 SIDs defined here:
-#   - function code 0 -> End.DT4 (decap inner IPv4, look it up in a VRF table);
-#   - the 48-bit argument carries the target customer table id (0x1001 / 0x1002) in
-#     its low 16 bits as a mnemonic. The actual table is bound by the End.DT4
-#     'vrftable' argument, so the value only needs to be unique.
-#   ::1001 == "0:0:0:1001" -> function 0 (End.DT4), arg 0:0:1001 (table 1001)
-#   ::1002 == "0:0:0:1002" -> function 0 (End.DT4), arg 0:0:1002 (table 1002)
-pe1_sid_1001="${pe1_loc}::1001"   # 2001:db8:1:101::1001
-pe1_sid_1002="${pe1_loc}::1002"   # 2001:db8:1:101::1002
-pe2_sid_1001="${pe2_loc}::1001"   # 2001:db8:1:501::1001
-pe2_sid_1002="${pe2_loc}::1002"   # 2001:db8:1:501::1002
+pe1_sid_1001="${pe1_loc}:${func_code_0_end_dt4}:1001"
+pe1_sid_1002="${pe1_loc}:${func_code_0_end_dt4}:1002"
+pe2_sid_1001="${pe2_loc}:${func_code_0_end_dt4}:1001"
+pe2_sid_1002="${pe2_loc}:${func_code_0_end_dt4}:1002"
+
+pe1_sid_dt6_1001="${pe1_loc}:${func_code_2_end_dt6}::1001"
+pe1_sid_dt6_1002="${pe1_loc}:${func_code_2_end_dt6}::1002"
+pe2_sid_dt6_1001="${pe2_loc}:${func_code_2_end_dt6}::1001"
+pe2_sid_dt6_1002="${pe2_loc}:${func_code_2_end_dt6}::1002"
 
 # -----------------------------------------------------------------------------
 # helpers
@@ -58,8 +60,9 @@ function install_decap_sid {
   local sid=$2        # full SID (function hextet identifies the table)
   local table_id=$3   # customer VRF table to decap into (1001 / 1002)
   local ce_vrf=$4     # customer VRF name
+  local action=$5
   echo "  decap $node  sid ${sid}/128  ->  table $table_id"
-  ip -n "$node" route add "${sid}/128" encap seg6local action End.DT4 vrftable $table_id dev $ce_vrf
+  ip -n "$node" route add "${sid}/128" encap seg6local action $action vrftable $table_id dev $ce_vrf
 }
 
 # Install an End localsid on a transit P-router: the basic SRv6 endpoint that
@@ -72,15 +75,15 @@ function install_end_sid {
   ip -n "$node" address add "${sid}/128" dev lo
 }
 
-# ---- egress PE: install the End.DT4 decap SIDs (localsid table) -------------
-# End.DT4: decapsulate the inner IPv4 packet and look it up in 'vrftable'.
-#
-# pe1 serves traffic coming -from- pe2 (towards ce1/ce3):
-install_decap_sid pe1 "$pe1_sid_1001" 1001 ce1   # -> table 1001 (ce1)
-install_decap_sid pe1 "$pe1_sid_1002" 1002 ce3   # -> table 1002 (ce3)
-# pe2 serves traffic coming -from- pe1 (towards ce2/ce4):
-install_decap_sid pe2 "$pe2_sid_1001" 1001 ce2  # -> table 1001 (ce2)
-install_decap_sid pe2 "$pe2_sid_1002" 1002 ce4  # -> table 1002 (ce4)
+install_decap_sid pe1 "$pe1_sid_1001" 1001 ce1 End.DT4
+install_decap_sid pe1 "$pe1_sid_1002" 1002 ce3 End.DT4
+install_decap_sid pe2 "$pe2_sid_1001" 1001 ce2 End.DT4
+install_decap_sid pe2 "$pe2_sid_1002" 1002 ce4 End.DT4
+
+install_decap_sid pe1 "$pe1_sid_dt6_1001" 1001 ce1 End.DT6
+install_decap_sid pe1 "$pe1_sid_dt6_1002" 1002 ce3 End.DT6
+install_decap_sid pe2 "$pe2_sid_dt6_1001" 1001 ce2 End.DT6
+install_decap_sid pe2 "$pe2_sid_dt6_1002" 1002 ce4 End.DT6
 
 # ---- transit P-routers: install End localsids ------------------------------
 # The End behavior is the basic SRv6 transit endpoint: it pops the SRH's active
@@ -98,7 +101,7 @@ for (( col=1; col<=NCOLS; col++ )); do
     node="p${row}${col}"
     region=$((col+1))                       # column 1->region 2, 2->3, 3->4
     p_loc=$(make_address $domain_global $region $row)
-    p_end_sid="${p_loc}:1::"                 # <locator>:<func 1>:<arg 0 0 0>
+    p_end_sid="${p_loc}:${func_code_1_end}::"                 # <locator>:<func 1>:<arg 0 0 0>
     install_end_sid "$node" "$p_end_sid"
   done
 done

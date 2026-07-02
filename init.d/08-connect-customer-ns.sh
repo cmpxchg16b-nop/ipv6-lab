@@ -62,41 +62,37 @@ function assign_ce_interconnect {
   local ce=$2
   local pe_addr=$3
   local ce_addr=$4
+  local ce_lo=$5
 
   local ce_intf="v-$ce"
   local pe_intf="v-$pe"
 
+  # assign ptp addresses to both sides
   ip -n $pe address add "$pe_addr" dev "$ce_intf"
   ip -n $ce address add "$ce_addr" dev "$pe_intf"
+
+  # assign lo
+  ip -n $ce address add $ce_lo dev lo
+
+  # assign default gw (at customer side)
+  ip -n $ce add default $pe_addr
 }
 
-assign_ce_loopback ce1 10.0.0.4/24
-assign_ce_loopback ce2 10.0.1.4/24
-assign_ce_loopback ce3 10.0.0.4/24
-assign_ce_loopback ce4 10.0.1.4/24
-assign_ce_loopback ce5 10.0.0.4/24
-assign_ce_loopback ce6 10.0.1.4/24
+assign_ce_interconnect pe1 ce1 10.0.0.2/30 10.0.0.1/30 10.0.0.0/24
+assign_ce_interconnect pe1 ce3 10.0.0.2/30 10.0.0.1/30 10.0.0.0/24
+assign_ce_interconnect pe1 ce5 10.0.0.2/30 10.0.0.1/30 10.0.0.0/24
 
-assign_ce_interconnect pe1 ce1 10.0.0.2/30 10.0.0.1/30
-assign_ce_interconnect pe1 ce3 10.0.0.2/30 10.0.0.1/30
-assign_ce_interconnect pe1 ce5 10.0.0.2/30 10.0.0.1/30
+assign_ce_interconnect pe1 ce1 fd00:1::1/127 fd00:1::/127 fd00:1::/48
+assign_ce_interconnect pe1 ce3 fd00:1::1/127 fd00:1::/127 fd00:1::/48
+assign_ce_interconnect pe1 ce5 fd00:1::1/127 fd00:1::/127 fd00:1::/48
 
-assign_ce_interconnect pe2 ce2 10.0.1.2/30 10.0.1.1/30
-assign_ce_interconnect pe2 ce4 10.0.1.2/30 10.0.1.1/30
-assign_ce_interconnect pe2 ce6 10.0.1.2/30 10.0.1.1/30
+assign_ce_interconnect pe2 ce2 10.0.1.2/30 10.0.1.1/30 10.0.1.0/24
+assign_ce_interconnect pe2 ce4 10.0.1.2/30 10.0.1.1/30 10.0.1.0/24
+assign_ce_interconnect pe2 ce6 10.0.1.2/30 10.0.1.1/30 10.0.1.0/24
 
-# assign gateway to ce (let CEx use PEx as gateway)
-function assign_gw_ce {
-  local ce=$1
-  local gw=$2
-  ip -n $ce route add 0.0.0.0/0 via $gw
-}
-
-assign_gw_ce ce1 10.0.0.2
-assign_gw_ce ce3 10.0.0.2
-assign_gw_ce ce2 10.0.1.2
-assign_gw_ce ce4 10.0.1.2
-# for ce5, ce6, they use BGP, so no static routes would configure for them
+assign_ce_interconnect pe2 ce2 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/48
+assign_ce_interconnect pe2 ce4 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/48
+assign_ce_interconnect pe2 ce6 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/48
 
 # assign route to ce
 function assign_ce_route {
@@ -109,14 +105,16 @@ function assign_ce_route {
   ip -n "$pe" route add "$ce_subnet" via "$ce_endpoint" vrf "$ce_vrf"
 }
 
+# add reverse routes to tell PE how to reach CE
+
 assign_ce_route pe1 ce1 ce1 10.0.0.0/24 10.0.0.1
 assign_ce_route pe1 ce3 ce3 10.0.0.0/24 10.0.0.1
 assign_ce_route pe2 ce2 ce2 10.0.1.0/24 10.0.1.1
 assign_ce_route pe2 ce4 ce4 10.0.1.0/24 10.0.1.1
-# for ce5, ce6, they use BGP, so no static routes would configure for them
 
-# validate these with:
-# ip netns exec pe1 ip vrf exec ce1 ping 10.0.0.4
-# ip netns exec pe1 ip vrf exec ce3 ping 10.0.0.4
-# ip netns exec pe2 ip vrf exec ce2 ping 10.0.1.4
-# ip netns exec pe2 ip vrf exec ce4 ping 10.0.1.4
+assign_ce_route pe1 ce1 ce1 fd00:1::/48 fd00:1::
+assign_ce_route pe1 ce3 ce3 fd00:1::/48 fd00:1::
+assign_ce_route pe2 ce2 ce2 fd00:1:1::/48 fd00:1:1::
+assign_ce_route pe2 ce4 ce4 fd00:1:1::/48 fd00:1:1::
+
+# for ce5, ce6, they use BGP, so no static routes would configure for them
