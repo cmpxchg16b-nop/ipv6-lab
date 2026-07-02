@@ -6,122 +6,176 @@
 
 #!/bin/bash
 
-function enable-bgp {
-  local asn=$1
-  local router_id=$2
-  local vrf_specifier=""
-  if [ -n "$3" ]; then
-    vrf_specifier="vrf $3"
-  fi
-
+# PE1 is the upstream of CE1, CE1 is a customer
+function config-pe1 {
   echo "
-enable
-conf t
-!
-router bgp $asn $vrf_specifier
-  bgp router-id $router_id
-  no bgp default ipv4-unicast
-  no bgp ebgp-requires-policy
-exit
-!
-exit
-copy run start
-exit
-"
-}
-
-enable-bgp 65001 169.254.1.101 | podman exec -it frr-ce5 vtysh
-enable-bgp 65002 169.254.1.102 ce5 | podman exec -it frr-pe1 vtysh
-
-enable-bgp 65001 169.254.2.101 | podman exec -it frr-ce6 vtysh
-enable-bgp 65002 169.254.2.102 ce6 | podman exec -it frr-pe2 vtysh
-
-function bgp-add-neighbor {
-  local asn=$1
-  local neighbor_asn=$2
-  local neighbor_ip=$3
-
-  local vrf_specifier=""
-  if [ -n "$4" ]; then
-    vrf_specifier="vrf $4"
-  fi
-
-  echo "
-enable
-conf t
-!
-router bgp $asn $vrf_specifier
-  neighbor $neighbor_ip remote-as $neighbor_asn
-exit
-!
-exit
-copy run start
-exit
-"
-}
-
-bgp-add-neighbor 65001 65002 10.0.0.2 | podman exec -it frr-ce5 vtysh
-bgp-add-neighbor 65002 65001 10.0.0.1 ce5 | podman exec -it frr-pe1 vtysh
-
-bgp-add-neighbor 65001 65002 10.0.1.2 | podman exec -it frr-ce6 vtysh
-bgp-add-neighbor 65002 65001 10.0.1.1 ce6 | podman exec -it frr-pe2 vtysh
-
-function bgp-advertise-network-to-neighbor {
-  local bgp_selector=$1
-  local neighbor=$2
-  local network=$3
-
-  echo "
-enable
-conf t
-!
-ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
-ip prefix-list allow-self seq 5 permit $network ge 24 le 24
-!
-router bgp $bgp_selector
-  address-family ipv4 unicast
-    network $network
-    neighbor $neighbor activate
-    neighbor $neighbor prefix-list allow-all in
-    neighbor $neighbor prefix-list allow-self out
-  exit-address-family
-exit
-!
-exit
-copy run start
-exit
-"
-}
-
-bgp-advertise-network-to-neighbor 65001 10.0.0.2 10.0.0.0/24 | podman exec -it frr-ce5 vtysh
-bgp-advertise-network-to-neighbor 65001 10.0.1.2 10.0.1.0/24 | podman exec -it frr-ce6 vtysh
-
-function bgp-set-pe-allow-list {
-  local bgp_selector=$1
-  local vrf=$2
-  local neighbor=$3
-
-  echo "
-enable
-conf t
-!
 ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
 ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
 ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
 !
-router bgp $bgp_selector vrf $vrf
-  address-family ipv4 unicast
-    neighbor $neighbor activate
-    neighbor $neighbor prefix-list allow-in in
-    neighbor $neighbor prefix-list allow-out out
-  exit-address-family
+router bgp 65002 vrf ce5
+ bgp router-id 169.254.1.102
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ no bgp network import-check
+ neighbor 10.0.0.1 remote-as 65001
+ !
+ address-family ipv4 unicast
+  neighbor 10.0.0.1 activate
+  neighbor 10.0.0.1 prefix-list allow-in in
+  neighbor 10.0.0.1 prefix-list allow-out out
+  sid vpn export auto
+  rd vpn export 65001:1003
+  rt vpn both 65001:1003
+  export vpn
+  import vpn
+ exit-address-family
 exit
 !
+router bgp 65002
+ bgp router-id 1.1.0.0
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ no bgp network import-check
+ neighbor 2001:db8:2:501:: remote-as 65002
+ neighbor 2001:db8:2:501:: update-source 2001:db8:2:101::
+ neighbor 2001:db8:2:501:: capability extended-nexthop
+ !
+ segment-routing srv6
+  locator main
+ exit
+ !
+ address-family ipv4 vpn
+  neighbor 2001:db8:2:501:: activate
+ exit-address-family
 exit
-copy run start
+!
+segment-routing
+ srv6
+  locators
+   locator main
+    prefix 2001:db8:2:101::/64 block-len 48 node-len 16
+   exit
+   !
+  exit
+  !
+ exit
+ !
 exit
+!
+end
 "
 }
 
-bgp-set-pe-allow-list 65002 ce5 10.0.0.1 | podman exec -it frr-pe1 vtysh
-bgp-set-pe-allow-list 65002 ce6 10.0.1.1 | podman exec -it frr-pe2 vtysh
+# PE2 is the upstream of CE2, CE2 is a customer
+function config-pe2 {
+  echo "
+ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
+ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
+ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
+!
+router bgp 65002 vrf ce6
+ bgp router-id 169.254.2.102
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ no bgp network import-check
+ neighbor 10.0.1.1 remote-as 65001
+ !
+ address-family ipv4 unicast
+  neighbor 10.0.1.1 activate
+  neighbor 10.0.1.1 prefix-list allow-in in
+  neighbor 10.0.1.1 prefix-list allow-out out
+  sid vpn export auto
+  rd vpn export 65001:1003
+  rt vpn both 65001:1003
+  export vpn
+  import vpn
+ exit-address-family
+exit
+!
+router bgp 65002
+ bgp router-id 5.5.0.0
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ no bgp network import-check
+ neighbor 2001:db8:2:101:: remote-as 65002
+ neighbor 2001:db8:2:101:: update-source 2001:db8:2:501::
+ neighbor 2001:db8:2:101:: capability extended-nexthop
+ !
+ segment-routing srv6
+  locator main
+ exit
+ !
+ address-family ipv4 vpn
+  neighbor 2001:db8:2:101:: activate
+ exit-address-family
+exit
+!
+segment-routing
+ srv6
+  locators
+   locator main
+    prefix 2001:db8:2:501::/64 block-len 48 node-len 16
+   exit
+   !
+  exit
+  !
+ exit
+ !
+exit
+!
+end
+"
+}
+
+function config-ce5 {
+  echo "
+ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
+ip prefix-list allow-self seq 5 permit 10.0.0.0/24 ge 24 le 24
+!
+router bgp 65001
+ bgp router-id 169.254.1.101
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ neighbor 10.0.0.2 remote-as 65002
+ !
+ address-family ipv4 unicast
+  network 10.0.0.0/24
+  neighbor 10.0.0.2 activate
+  neighbor 10.0.0.2 prefix-list allow-all in
+  neighbor 10.0.0.2 prefix-list allow-self out
+ exit-address-family
+exit
+!
+end
+"
+}
+
+function config-ce6 {
+  echo "
+ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
+ip prefix-list allow-self seq 5 permit 10.0.1.0/24 ge 24 le 24
+!
+router bgp 65001
+ bgp router-id 169.254.2.101
+ no bgp ebgp-requires-policy
+ no bgp default ipv4-unicast
+ neighbor 10.0.1.2 remote-as 65002
+ !
+ address-family ipv4 unicast
+  network 10.0.1.0/24
+  neighbor 10.0.1.2 activate
+  neighbor 10.0.1.2 prefix-list allow-all in
+  neighbor 10.0.1.2 prefix-list allow-self out
+ exit-address-family
+exit
+!
+end
+"
+}
+
+
+config-pe1 | podman exec -it frr-pe1 vtysh
+config-pe2 | podman exec -it frr-pe2 vtysh
+config-ce5 | podman exec -it frr-ce5 vtysh
+config-ce6 | podman exec -it frr-ce6 vtysh
