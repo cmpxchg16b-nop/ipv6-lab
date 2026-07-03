@@ -3,115 +3,142 @@
 A self-contained lab for experimenting with **SRv6 (Segment Routing over IPv6)**. It
 builds a virtual service-provider network entirely out of Linux network namespaces and
 containerized [FRRouting][frr] routers — no VMs or external hardware required — and uses
-SRv6 to deliver an **IPv4 L3VPN** service on top of an **OSPFv3** underlay.
+SRv6 to deliver **L3VPN** services (both IPv4 and IPv6) on top of an **OSPFv3** underlay.
 
 [frr]: https://frrouting.org/
 
-The goal is the classic SRv6-VPN story: two customer organizations, each with a site on
-both edges of the provider fabric, communicate through the provider using SRv6
-encapsulation. The PEs act as ingress (encap) and egress (decap) SRv6 endpoints.
+The lab demonstrates the SRv6-VPN story in three flavors, each a customer org split across
+the two PEs:
+
+- **Org 1** (table 1001) and **Org 2** (table 1002) — *statically programmed* SRv6: the
+  `seg6local` local SIDs and the `seg6` encap routes are installed by hand. Org 1 takes a
+  direct single-segment path PE1↔PE2; org 2 is traffic-engineered through specific core
+  routers.
+- **Org 3** (table 1003) — *BGP-signaled* SRv6 VPN: CE5/CE6 peer with the PEs over eBGP,
+  the PEs exchange the VPN over iBGP, and FRR auto-allocates the SRv6 SIDs — the way a real
+  operator would wire it up.
+
+In every case the PEs act as ingress (encap) and egress (decap) SRv6 endpoints.
 
 ## Topology
 
-```
-┌──────┐      ┌────────┐    ┌──────────────────┐    ┌────────┐      ┌──────┐
-│ CE1  ├──────┤        │    │                  │    │        ├──────┤ CE2  │
-└──────┘      │  PE1   │    │ 3x3 P-routers    │    │  PE2   │      └──────┘
-              │        ├────┤                  ├────┤        │                
-              │        │    │     + OSPFv3     │    │        │              
-┌──────┐      │        │    │                  │    │        │      ┌──────┐
-│ CE3  ├──────┤        │    │                  │    │        ├──────┤ CE4  │
-└──────┘      └────────┘    └──────────────────┘    └────────┘      └──────┘
-```
+The provider fabric is 11 routers: two PEs (`pe1`, `pe2`) flanking a 3×3 grid of P-routers
+(`p11 p12 p13 / p21 p22 p23 / p31 p32 p33`). The OSPFv3 adjacency graph is three
+PE-anchored row-chains with vertical links only between adjacent rows:
 
-CE1↔CE2 are org 1 (table 1001); CE3↔CE4 are org 2 (table 1002). Each PE SRv6-encapsulates
-its sites' traffic across the OSPFv3 fabric to the other PE, which decapsulates into the
-matching customer table.
+```
+                        col1            col2            col3
+                     +-------+       +-------+       +-------+
+               +---->| p11   |------>| p12   |------>| p13   |----+
+               |     +-------+       +-------+       +-------+    |
+               |        |               |               |         |
+   +-------+   |     +-------+       +-------+       +-------+    |   +-------+
+   |  PE1  |---+---->| p21   |------>| p22   |------>| p23   |----+-->|  PE2  |
+   +-------+   |     +-------+       +-------+       +-------+    |   +-------+
+               |        |               |               |         |
+               |     +-------+       +-------+       +-------+    |
+               +---->| p31   |------>| p32   |------>| p33   |----+
+                     +-------+       +-------+       +-------+
+
+   ------>  inter-column (same row):  col c  ->  col c+1
+     |      intra-column (same col):  adjacent rows only  (row r <-> row r±1)
+   PE1 peers with every col-1 node; every col-3 node peers with PE2
+```
 
 ## Architecture: two planes
 
-The lab is split into an **underlay** (the provider fabric) and an **overlay** (the
-customer VPNs carried over it by SRv6).
+The lab is split into an **underlay** (the OSPFv3 provider fabric, run in each router's
+default table) and an **overlay** (the customer VPNs carried over it by SRv6).
 
 ```mermaid
 flowchart TD
-    subgraph ORG1["org 1  (table 1001)"]
-        CE1["CE1 @ PE1<br/>10.0.0.0/24"]
-        CE2["CE2 @ PE2<br/>10.0.1.0/24"]
+    subgraph ORG1["org 1  (table 1001) — static SRv6, direct"]
+        CE1["CE1 @ PE1"]
+        CE2["CE2 @ PE2"]
     end
-    subgraph ORG2["org 2  (table 1002)"]
-        CE3["CE3 @ PE1<br/>10.0.0.0/24"]
-        CE4["CE4 @ PE2<br/>10.0.1.0/24"]
+    subgraph ORG2["org 2  (table 1002) — static SRv6, steered p11→p31→p33"]
+        CE3["CE3 @ PE1"]
+        CE4["CE4 @ PE2"]
     end
-    PE1["PE1<br/>srv6 VRF (tbl 101) + customer VRFs"]
-    PE2["PE2<br/>srv6 VRF (tbl 101) + customer VRFs"]
+    subgraph ORG3["org 3  (table 1003) — BGP-signaled SRv6 VPN"]
+        CE5["CE5 @ PE1"]
+        CE6["CE6 @ PE2"]
+    end
+    PE1["PE1<br/>underlay (default table) + customer VRFs<br/>runs FRR"]
+    PE2["PE2<br/>underlay (default table) + customer VRFs<br/>runs FRR"]
     FAB["Underlay fabric<br/>9 P-routers + OSPFv3"]
 
-    CE1 & CE3 --> PE1
-    CE2 & CE4 --> PE2
-    PE1 <-->|"SRv6 encap (End.DT4 SID) over srv6 VRF"| FAB
+    CE1 & CE3 & CE5 --> PE1
+    CE2 & CE4 & CE6 --> PE2
+    PE1 <-->|"SRv6 encap (End.DT4 / End.DT6 SID)"| FAB
     FAB <--> PE2
+    PE1 <-->|"iBGP — org 3 VPN + SRv6 SID exchange"| PE2
 ```
 
 ### Underlay — the provider fabric
 
-11 routers wired together with veth pairs:
+11 routers wired together with veth pairs and speaking OSPFv3 (area 0). Each router runs in
+its own namespace as an `frrouting/frr` container (via Podman); the underlay lives in the
+**default routing table** on every node (there is no separate transport VRF).
 
-- **2 Provider-Edge (PE) routers**: `pe1`, `pe2`
-- **9 Provider (P) core routers** in a 3×3 grid: `p11 p12 p13 / p21 p22 p23 / p31 p32 p33`
+- Each row forms a chain `pe1 – p{r}1 – p{r}2 – p{r}3 – pe2` (inter-column, same-row links).
+- Within a column, only **vertically adjacent** P-routers peer (`p{r} ↔ p{r±1}`); there is
+  no skip-hop intra-column adjacency.
+- `pe1` peers with every node in column 1; `pe2` with every node in column 3.
 
-Each runs in its own namespace as an `frrouting/frr` container (via Podman) and speaks
-OSPFv3. The connectivity is a multi-stage fabric:
-
-```
-        ┌───────┐   full mesh   ┌───────┐   full mesh   ┌───────┐
- pe1 ──▶│ col1  │ ────────────▶ │ col2  │ ────────────▶ │ col3  │◀── pe2
-        │p11 p21│               │p12 p22│               │p13 p23│
-        │p31    │               │p32    │               │p33    │
-        └───────┘               └───────┘               └───────┘
-```
-
-- `pe1` connects to every node in column 1; `pe2` to every node in column 3.
-- Every node in column *N* is fully meshed with every node in column *N+1`.
-- **24 point-to-point links** in total.
+The OSPF adjacencies are configured in `05-config-frr.sh`: area 0 on every locator (`lo`,
+passive) and on every transit link (`ipv6 ospf6 network point-to-point`).
 
 ### Overlay — customer L3VPN via SRv6
 
-4 customer edges (`ce1`–`ce4`) attach to the PEs, grouped into two organizations:
+6 customer edges attach to the PEs, grouped into three organizations:
 
-| Org | VRF table | PE1 site | PE2 site |
-| --- | --- | --- | --- |
-| org 1 | **1001** | `ce1` — `10.0.0.0/24` | `ce2` — `10.0.1.0/24` |
-| org 2 | **1002** | `ce3` — `10.0.0.0/24` | `ce4` — `10.0.1.0/24` |
+| Org | VRF / table | PE1 site | PE2 site | SRv6 programming |
+| --- | --- | --- | --- | --- |
+| org 1 | **1001** | `ce1` | `ce2` | static, direct PE1↔PE2 |
+| org 2 | **1002** | `ce3` | `ce4` | static, steered `p11→p31→p33` |
+| org 3 | **1003** | `ce5` | `ce6` | BGP-signaled (FRR, auto SIDs) |
 
-The two orgs intentionally use **overlapping** IPv4 subnets (`10.0.0.0/24` on the PE1
-side, `10.0.1.0/24` on the PE2 side) — they are kept separate by living in different
-VRF tables.
+Each org is carried in **both** IPv4 and IPv6. The orgs intentionally use **overlapping**
+address space — they are kept separate by living in different VRF tables:
 
-#### How a packet crosses the fabric (CE1 → CE2)
+| Plane | PE1 side | PE2 side |
+| --- | --- | --- |
+| IPv4 | `10.0.0.0/24` | `10.0.1.0/24` |
+| IPv6 | `fd00:1::/48` | `fd00:1:1::/48` |
+
+`ce1`–`ce4` are plain Linux namespaces; `ce5` and `ce6` also run FRR (for the BGP peering).
+
+#### How a packet crosses the fabric (CE1 → CE2, org 1, IPv4)
 
 ```mermaid
 flowchart TD
     A["CE1 sends IPv4 packet<br/>to 10.0.1.0/24 (arrives in PE1's ce1 VRF)"]
-    B["PE1: seg6 encap<br/>wrap in IPv6/SRH, DA = PE2 SID<br/>2001:db8:1:501::1001, emit via srv6 VRF"]
+    B["PE1: seg6 encap<br/>wrap in IPv6/SRH, DA = PE2 SID<br/>2001:db8:1:501::1001, emit via lo"]
     C["Underlay: OSPFv3 carries the<br/>SRv6 packet across the fabric to PE2"]
     D["PE2: End.DT4 decap<br/>strip outer header, look up inner IPv4<br/>in table 1001 (ce2 VRF)"]
     E["Forwarded to CE2"]
     A --> B --> C --> D --> E
 ```
 
-The reverse direction (CE2 → CE1) is the mirror image, landing in PE1's table 1001.
+The IPv6 overlay (CE1 ↔ CE2) is the mirror image using the `End.DT6` SID
+(`2001:db8:1:501:2::1001`). The reverse direction lands in PE1's table 1001.
+
 Org 2 (CE3 ↔ CE4) reaches the same result but is **traffic-engineered through the P
 fabric**: its SRH lists transit `End` SIDs (`p11 → p31 → p33`) before the remote PE's
-`End.DT4`, steering the packet across specific core routers instead of going direct.
+`End.DT4`/`End.DT6`, steering the packet across specific core routers instead of going
+direct.
+
+Org 3 (CE5 ↔ CE6) does no manual SRv6 at all: CE5/CE6 advertise their prefixes to the PEs
+over eBGP (AS65001), the PEs (AS65002) exchange the VPN routes over iBGP, and FRR
+auto-allocates the SRv6 SIDs from each PE's `locator main`.
 
 ## Addressing
 
 ### Underlay IPv6 locators (provider plane)
 
-All underlay addresses live under the documentation prefix `2001:db8:1::/48`
-(`domain_global`). The hextets intentionally encode **region** and **node**, which makes
-them natural SRv6 locators/segments:
+Underlay addresses live under two documentation prefixes, both composed from an 8-bit
+**region** and 8-bit **node** ID, which makes them natural SRv6 locators/segments.
 
 | Entity | Region ID | Node ID |
 | --- | --- | --- |
@@ -121,11 +148,14 @@ them natural SRv6 locators/segments:
 | column 3 (`p13 p23 p33`) | 4 | row number (1–3) |
 | `pe2` | 5 | 1 |
 
-- **Node locator** — `<domain>:<region><node>::/64`
+- **Node locator** — `2001:db8:1:<region><node>::/64` (`domain_global`), placed on `lo` on
+  every router.
   e.g. `pe1` → `2001:db8:1:101::/64`, `pe2` → `2001:db8:1:501::/64`, `p22` → `2001:db8:1:302::/64`.
-  On the PEs this `/64` is placed on the `srv6` VRF; on P-routers it sits on `lo`.
-- **Point-to-point links** — `<domain>:<src_region><src_node>::<dst_region><dst_node>:<order>/127`,
+- **Point-to-point links** — `2001:db8:1:<src_region><src_node>::<dst_region><dst_node>:<order>/127`,
   where the trailing `order` bit (0/1) distinguishes each end.
+- **PE SRv6/BGP-locator plane** — `2001:db8:2:<region><node>::/64` (`domain_sid`), also on
+  the PE loopbacks. e.g. `pe1` → `2001:db8:2:101::/64`, `pe2` → `2001:db8:2:501::/64`. This
+  is the iBGP transport between PEs and the `locator main` prefix used by org 3's BGP VPN.
 
 The `make_address` / `make_ptp_address` helpers in `02-assign-addresses.sh` compose these
 by shifting the 8-bit region and node IDs into a single hextet.
@@ -136,18 +166,19 @@ A SID is a 128-bit IPv6 address laid out as **64-bit locator + 16-bit function c
 48-bit argument**.
 
 - **Locators (64 bits)** — the node that owns the SID:
-  - PE locators `2001:db8:1:101` (`pe1`) and `2001:db8:1:501` (`pe2`), on the `srv6` VRF;
+  - PE locators `2001:db8:1:101` (`pe1`) and `2001:db8:1:501` (`pe2`), on `lo`;
   - P-router locators `2001:db8:1:<region><node>` (e.g. `p11` → `2001:db8:1:201`), on `lo`.
-- **Function codes (16 bits)** — the SRv6 behavior. Two are used:
+- **Function codes (16 bits)** — the SRv6 behavior. Three are used:
   - `0` → **`End.DT4`** on the egress PE: decap the inner IPv4 and look it up in a customer VRF;
-  - `1` → **`End`** on every transit P-router: pop the SRH active segment and forward to the next.
+  - `1` → **`End`** on every transit P-router: pop the SRH active segment and forward to the next;
+  - `2` → **`End.DT6`** on the egress PE: decap the inner IPv6 and look it up in a customer VRF.
 - **Arguments (48 bits)** — a per-function parameter:
-  - `End.DT4` → the **target customer table id** (`0x1001`/`0x1002`, written as the hextet
-    `1001`/`1002`) carried as a mnemonic; the real binding comes from the
-    `End.DT4 vrftable` argument, so the value only needs to be unique.
+  - `End.DT4` / `End.DT6` → the **target customer table id** (`0x1001`/`0x1002`, written as
+    the trailing hextet `1001`/`1002`) carried as a mnemonic; the real binding comes from the
+    `End.DT4 vrftable` / `End.DT6 vrftable` argument, so the value only needs to be unique;
   - `End` → `0` (unused).
 
-The SIDs in use:
+The **statically programmed** SIDs (orgs 1 & 2, installed in `09`/`10`):
 
 | SID | Locator | Function | Argument |
 | --- | --- | --- | --- |
@@ -155,29 +186,39 @@ The SIDs in use:
 | `2001:db8:1:101::1002` | pe1 | `0` `End.DT4` | `0:0:1002` → table 1002 (`ce3`) |
 | `2001:db8:1:501::1001` | pe2 | `0` `End.DT4` | `0:0:1001` → table 1001 (`ce2`) |
 | `2001:db8:1:501::1002` | pe2 | `0` `End.DT4` | `0:0:1002` → table 1002 (`ce4`) |
-| `2001:db8:1:201:1::` | p11 | `1` `End` | `0` |
-| `2001:db8:1:203:1::` | p31 | `1` `End` | `0` |
-| `2001:db8:1:403:1::` | p33 | `1` `End` | `0` |
+| `2001:db8:1:101:2::1001` | pe1 | `2` `End.DT6` | `0:0:1001` → table 1001 (`ce1`) |
+| `2001:db8:1:101:2::1002` | pe1 | `2` `End.DT6` | `0:0:1002` → table 1002 (`ce3`) |
+| `2001:db8:1:501:2::1001` | pe2 | `2` `End.DT6` | `0:0:1001` → table 1001 (`ce2`) |
+| `2001:db8:1:501:2::1002` | pe2 | `2` `End.DT6` | `0:0:1002` → table 1002 (`ce4`) |
+| `2001:db8:1:<reg><row>:1::` | every P | `1` `End` | `0` |
 
-Every P-router gets an `End` SID (`2001:db8:1:<region><node>:1::`); only `p11`, `p31`,
-`p33` are placed in org 2's segment list.
+Every P-router gets an `End` SID; only `p11`, `p31`, `p33` are placed in org 2's segment
+list. Org 3's SIDs are not listed here — they are auto-allocated by FRR under each PE's
+`locator main` (`2001:db8:2:101` / `2001:db8:2:501`).
 
-### Customer IPv4 (overlay plane)
+### Customer addressing (overlay plane)
 
-- CE loopbacks use the `.4` host in their `/24` (e.g. `ce1` → `10.0.0.4/24`).
-- CE↔PE interconnects are `/30`: CE side `.1`, PE side `.2`.
-- Each CE uses its PE (`.2`) as its default gateway; each PE has a route to its CE's
-  `/24` inside the customer VRF.
+Per-org addressing (identical across the three orgs since they live in separate tables):
+
+- **IPv4** — CE loopback carries the whole `/24` on `lo` (`10.0.0.0/24` on the PE1 side,
+  `10.0.1.0/24` on the PE2 side). The CE↔PE interconnect is a `/30`: CE side `.1`, PE side
+  `.2`; the CE uses the PE (`.2`) as its default gateway and the PE holds a route to the
+  CE's `/24` inside the customer VRF.
+- **IPv6** — CE loopback carries the whole `/48` on `lo` (`fd00:1::/48` on the PE1 side,
+  `fd00:1:1::/48` on the PE2 side). The interconnect is a `/127`, again with the PE as the
+  CE's default gateway.
 
 ## VRF / table layout
 
-The convention (from `00-create-netns-and-vrf.sh`) is:
+The convention (from `00-create-netns-and-vrf.sh` and `08-connect-customer-ns.sh`) is:
 
-- **100–999** — provider VRFs. Only `srv6` (table 101) is used: the SRv6 transport VRF on
-  the PEs that holds the PE locators and runs the underlay OSPFv3.
-- **1000–1999** — customer VRFs. `1001` = org 1, `1002` = org 2. Each is instantiated on
-  the PE that hosts the corresponding CE (so `ce1`/`ce2` share table 1001 on opposite PEs,
-  `ce3`/`ce4` share table 1002).
+- **1001–1999** — customer VRFs, one per org, instantiated on the PE that hosts the
+  corresponding CE:
+  - `1001` = org 1 (`ce1` on pe1, `ce2` on pe2);
+  - `1002` = org 2 (`ce3` on pe1, `ce4` on pe2);
+  - `1003` = org 3 (`ce5` on pe1, `ce6` on pe2).
+- The underlay runs in the **default table** on every router; there is no dedicated
+  transport/srv6 VRF. (The `00-create-netns-and-vrf.sh` filename predates that change.)
 
 ## The init.d / deinit.d scripts
 
@@ -188,26 +229,26 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 
 | Script | Purpose |
 | --- | --- |
-| `00-create-netns-and-vrf.sh` | Creates the 11 router namespaces; sets sysctls (IPv6 forwarding, `seg6_enabled`, `seg6_require_hmac=0`, VRF strict mode); creates the `srv6` VRF (table 101) on `pe1`/`pe2`. |
-| `01-connect-netns.sh` | Creates the veth pairs that build the fabric topology. |
-| `02-assign-addresses.sh` | Computes region/node IDs; assigns PE locators to the `srv6` VRF, P-router locators to `lo`, and `/127` point-to-point addresses. |
-| `03-create-node-directories.sh` | Stages a per-node `frr.conf.d` under `nodes/<node>/` from the shared template, writing hostname + logging into `frr.conf`. |
-| `04-launch-frr.sh` | Launches one `frrouting/frr:10.6.1` container per namespace via Podman, joined to its namespace (`--network ns:/run/netns/<node>`) with the relevant networking caps. |
-| `05-config-frr.sh` | Configures the **OSPFv3 underlay** via `vtysh`: router-ID `<region>.<node>.0.0`, area 0 on all transit links (point-to-point) and the locator (passive). PEs run OSPF inside the `srv6` VRF; P-routers in the default table. |
-| `06-ping-all.sh` | Sanity-checks underlay reachability by pinging every locator from PE1 inside the `srv6` VRF. |
-| `07-create-customer-ns.sh` | Creates the `ce1`–`ce4` customer namespaces (IPv6 forwarding on). |
-| `08-connect-customer-ns.sh` | Connects each CE to its PE with a veth placed in a customer VRF (tables 1001/1002); assigns IPv4 loopbacks, `/30` interconnects, CE default gateways, and PE→CE routes. |
-| `09-programming-srv6-dataplane.sh` | Programs the SRv6 **data plane (local SIDs)**: installs `End.DT4` decap SIDs (`seg6local`) on each PE for tables 1001/1002, and an `End` SID on every transit P-router so traffic-engineered paths can steer through it. |
-| `10-setup-pe-srv6-routes.sh` | Installs the **ingress encap routes** in the customer VRFs (`seg6 mode encap` … `dev srv6`): org 1 is a direct single-segment path PE1↔PE2, while org 2 is steered through the P fabric (`p11 → p31 → p33`) via the transit `End` SIDs before the remote PE's `End.DT4`. Also adds a policy-routing rule to activate the SID table. |
+| `00-create-netns-and-vrf.sh` | Creates the 11 router namespaces (`pe1`, `p11`–`p33`, `pe2`) **and** the 6 customer namespaces (`ce1`–`ce6`); sets sysctls on each (IPv6 forwarding, VRF strict mode, `seg6_enabled`, `seg6_require_hmac=0`, `keep_addr_on_down`). Despite the name, it no longer creates any VRF. |
+| `01-connect-netns.sh` | Creates the veth pairs that build the fabric (inter-column links plus the PE↔column-1 / column-3↔PE links). |
+| `02-assign-addresses.sh` | Computes region/node IDs; assigns the `2001:db8:1::` locators to every `lo`, the `/127` point-to-point addresses, and the `2001:db8:2::` PE SRv6/BGP-locator prefixes. |
+| `03-create-node-directories.sh` | Stages a per-node `frr.conf.d` under `nodes/<node>/` from the shared template for the 13 FRR-running nodes (`pe1`, `p11`–`p33`, `pe2`, `ce5`, `ce6`), writing hostname + logging into `frr.conf`. |
+| `04-launch-frr.sh` | Launches one `frrouting/frr:10.6.1` container per FRR node via Podman, joined to its namespace (`--network ns:/run/netns/<node>`) with the relevant networking caps. |
+| `05-config-frr.sh` | Configures the **OSPFv3 underlay** via `vtysh`: router-ID `<region>.<node>.0.0`, area 0 on every locator (`lo`, passive) and on every transit link (point-to-point), all in the default table. Adjacencies follow the row-chain + adjacent-row topology above. |
+| `08-connect-customer-ns.sh` | Connects `ce1`–`ce6` to their PE inside customer VRFs (tables 1001/1002/1003); assigns IPv4 (`10.0.x`) and IPv6 (`fd00:1:...`) loopbacks, `/30` and `/127` interconnects, CE default gateways, and PE→CE routes. No static route is added for `ce5`/`ce6` (learned via BGP). |
+| `09-programming-srv6-dataplane.sh` | Programs the SRv6 **data plane (local SIDs)** for orgs 1 & 2: installs `End.DT4` and `End.DT6` decap SIDs (`seg6local`) on each PE for tables 1001/1002, and an `End` SID on every transit P-router so traffic-engineered paths can steer through it. |
+| `10-setup-pe-srv6-routes.sh` | Installs the **ingress encap routes** in the customer VRFs (`seg6 mode encap … dev lo`/`v-<node>`): org 1 is a direct single-segment path PE1↔PE2, while org 2 is steered through the P fabric (`p11 → p31 → p33`) via the transit `End` SIDs before the remote PE's decap SID. Covers both IPv4 (`End.DT4`) and IPv6 (`End.DT6`). |
+| `11-add-bgp-ce.sh` | Brings up **org 3's BGP-signaled SRv6 VPN**: eBGP from `ce5`/`ce6` (AS65001) to their PE (AS65002), iBGP between PE1 and PE2 over the `2001:db8:2::` locators, with `segment-routing srv6` + `locator main` so FRR auto-allocates the VPN SIDs (RD/RT `65001:1003`). |
+
+> There is no `06-*` or `07-*` script in `init.d/`; those numbers are skipped.
 
 ### `deinit.d/` — tear down
 
 | Script | Purpose |
 | --- | --- |
-| `07-teardown-frr.sh` | Stops the 11 `frr-<node>` core containers (launched with `--rm`, so they self-remove). |
+| `07-teardown-frr.sh` | Stops the 13 `frr-<node>` containers (`pe1`, `p11`–`p33`, `pe2`, `ce5`, `ce6`; launched with `--rm`, so they self-remove). |
 | `08-remove-node-directories.sh` | Deletes the staged `nodes/` config tree. |
-| `09-teardown-netns.sh` | Deletes the 11 core router namespaces. |
-| `10-teardown-customer-netns.sh` | Delete the customers namespaces. |
+| `09-teardown-netns.sh` | Deletes all 17 namespaces — the 11 routers and `ce1`–`ce6`. |
 
 ## Running
 
@@ -215,7 +256,7 @@ The scripts are numbered and meant to run in order. `init.d/` brings the lab up;
 # bring up (run init.d in order)
 for s in init.d/*.sh; do bash "$s"; done
 
-# tear down (run deinit.d in order; 10-teardown-customer-netns.sh removes ce1–ce4)
+# tear down (run deinit.d in order)
 for s in deinit.d/*.sh; do bash "$s"; done
 ```
 
@@ -224,15 +265,19 @@ for s in deinit.d/*.sh; do bash "$s"; done
 ## Verifying
 
 ```bash
-# underlay: PE1 should reach PE2's locator inside the srv6 VRF
-ip netns exec pe1 ip vrf exec srv6 ping -c1 2001:db8:1:501::
+# underlay: PE1 should reach PE2's locator (default table, no VRF)
+ip netns exec pe1 ping -c1 2001:db8:1:501::
 
 # CE-to-PE leg (per customer VRF)
-ip netns exec pe1 ip vrf exec ce1 ping 10.0.0.4
+ip netns exec pe1 ip vrf exec ce1 ping 10.0.0.1
 
-# end-to-end across the SRv6 VPN
-ip netns exec ce1 ping 10.0.1.4   # org 1: CE1 -> CE2
-ip netns exec ce3 ping 10.0.1.4   # org 2: CE3 -> CE4
+# end-to-end across the SRv6 VPN (ping the far CE's PE-side interconnect)
+ip netns exec ce1 ping 10.0.1.1   # org 1: CE1 -> CE2  (static SRv6, direct)
+ip netns exec ce3 ping 10.0.1.1   # org 2: CE3 -> CE4  (static SRv6, steered)
+ip netns exec ce5 ping 10.0.1.1   # org 3: CE5 -> CE6  (BGP-signaled, after convergence)
+
+# IPv6 overlay
+ip netns exec ce1 ping fd00:1:1::1
 
 # inspect the SRv6 state
 ip -n pe1 -6 route show table local | grep -i seg6local   # decap SIDs
