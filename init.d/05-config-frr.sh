@@ -67,6 +67,26 @@ function conn-ospf6 {
   en-ospf-if $src_node | podman exec -it "frr-${dst_node}" vtysh
 }
 
+#
+#   拓扑示意
+#
+#                       +-------+       +-------+       +-------+
+#                 +---->| p11   |------>| p12   |------>| p13   |----+
+#                 |     +-------+       +-------+       +-------+    |
+#                 |        |               |               |         |
+#     +-------+   |     +-------+       +-------+       +-------+    |   +-------+
+#     |  PE1  |---+---->| p21   |------>| p22   |------>| p23   |----+-->|  PE2  |
+#     +-------+   |     +-------+       +-------+       +-------+    |   +-------+
+#                 |        |               |               |         |
+#                 |     +-------+       +-------+       +-------+    |
+#                 +---->| p31   |------>| p32   |------>| p33   |----+
+#                       +-------+       +-------+       +-------+
+#
+#     ------>  层间连接: 同行 (row 相等), col -> col+1
+#       |      层内连接: 同列 (col 相等), 仅上下相邻 row (row±1)
+#     PE1 连接第 1 列所有节点; 第 3 列所有节点连接 PE2
+#
+
 for (( row=1; row<=NROWS; row++ )) do
   conn-ospf6 pe1 "p${row}1"
   conn-ospf6 "p${row}3" pe2
@@ -79,8 +99,8 @@ for (( row=1; row<=NROWS; row++ )) do
         dst_col=$((col+1))
         dst_node="p${dstRow}${dst_col}"
         conn-ospf6 "$src_node" "$dst_node"
-      else
-        # 层内连接：不同行同列（保持不变）
+      elif [ "$dstRow" == "$((row-1))" ] || [ "$dstRow" == "$((row+1))" ]; then
+        # 层内连接：同列，仅连接上下相邻的节点 (row±1)
         dst_col=$col
         dst_node="p${dstRow}${dst_col}"
         conn-ospf6 "$src_node" "$dst_node"
