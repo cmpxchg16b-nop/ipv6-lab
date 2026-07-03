@@ -74,11 +74,13 @@ for (( row=1; row<=NROWS; row++ )) do
   for (( col=1; col<=NCOLS-1; col++ )) do
     src_node="p${row}${col}"
     for (( dstRow=1; dstRow<=NROWS; dstRow++ )) do
-      dst_col=$((col+1))
-      dst_node="p${dstRow}${dst_col}"
-      conn-ospf6 "$src_node" "$dst_node"
-
-      if [ "$dstRow" != "$row" ]; then
+      if [ "$dstRow" == "$row" ]; then
+        # 层间连接：只连接 row 相等的节点（同行的下一列）
+        dst_col=$((col+1))
+        dst_node="p${dstRow}${dst_col}"
+        conn-ospf6 "$src_node" "$dst_node"
+      else
+        # 层内连接：不同行同列（保持不变）
         dst_col=$col
         dst_node="p${dstRow}${dst_col}"
         conn-ospf6 "$src_node" "$dst_node"
