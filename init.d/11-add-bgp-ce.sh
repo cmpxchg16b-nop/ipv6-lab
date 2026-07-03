@@ -21,9 +21,11 @@ router bgp 65002 vrf ce5
  no bgp default ipv4-unicast
  no bgp network import-check
  neighbor 10.0.0.1 remote-as 65001
+ neighbor 10.0.0.1 update-source 10.0.0.2
  !
  address-family ipv4 unicast
   neighbor 10.0.0.1 activate
+  neighbor 10.0.0.1 as-override
   neighbor 10.0.0.1 prefix-list allow-in in
   neighbor 10.0.0.1 prefix-list allow-out out
   sid vpn export auto
@@ -86,11 +88,13 @@ router bgp 65002 vrf ce6
  no bgp default ipv4-unicast
  no bgp network import-check
  neighbor 10.0.1.1 remote-as 65001
+ neighbor 10.0.1.1 update-source 10.0.1.2
  !
  address-family ipv4 unicast
   neighbor 10.0.1.1 activate
   neighbor 10.0.1.1 prefix-list allow-in in
   neighbor 10.0.1.1 prefix-list allow-out out
+  neighbor 10.0.0.1 as-override
   sid vpn export auto
   rd vpn export 65001:1003
   rt vpn both 65001:1003
@@ -148,6 +152,7 @@ router bgp 65001
  no bgp ebgp-requires-policy
  no bgp default ipv4-unicast
  neighbor 10.0.0.2 remote-as 65002
+ neighbor 10.0.0.2 update-source 10.0.0.1
  !
  address-family ipv4 unicast
   network 10.0.0.0/24
@@ -175,6 +180,7 @@ router bgp 65001
  no bgp ebgp-requires-policy
  no bgp default ipv4-unicast
  neighbor 10.0.1.2 remote-as 65002
+ neighbor 10.0.1.2 update-source 10.0.1.1
  !
  address-family ipv4 unicast
   network 10.0.1.0/24
