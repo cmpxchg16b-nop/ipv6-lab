@@ -51,11 +51,7 @@ conn_customer_to_provider ce6 1003 pe2 ce6 1280
 # ce1, ce3 would use the first usable host address in 10.0.0.0/30 to interconnect with pe1
 # ce2, ce4 would use the first usable host address in 10.0.1.0/30 to interconnect with pe2
 
-function assign_ce_loopback {
-  local ce=$1
-  local addr=$2
-  ip -n $ce address add "$addr" dev lo
-}
+
 
 function assign_ce_interconnect {
   local pe=$1
@@ -63,36 +59,37 @@ function assign_ce_interconnect {
   local pe_addr=$3
   local ce_addr=$4
   local ce_lo=$5
+  local ptp_mask=$6
 
   local ce_intf="v-$ce"
   local pe_intf="v-$pe"
 
   # assign ptp addresses to both sides
-  ip -n $pe address add "$pe_addr" dev "$ce_intf"
+  ip -n $pe address add "$pe_addr/$ptp_mask" dev "$ce_intf"
   ip -n $ce address add "$ce_addr" dev "$pe_intf"
 
   # assign lo
   ip -n $ce address add $ce_lo dev lo
 
   # assign default gw (at customer side)
-  ip -n $ce add default $pe_addr
+  ip -n $ce route add default via $pe_addr
 }
 
-assign_ce_interconnect pe1 ce1 10.0.0.2/30 10.0.0.1/30 10.0.0.0/24
-assign_ce_interconnect pe1 ce3 10.0.0.2/30 10.0.0.1/30 10.0.0.0/24
-assign_ce_interconnect pe1 ce5 10.0.0.2/30 10.0.0.1/30 10.0.0.0/24
+assign_ce_interconnect pe1 ce1 10.0.0.2 10.0.0.1/30 10.0.0.0/24 30
+assign_ce_interconnect pe1 ce3 10.0.0.2 10.0.0.1/30 10.0.0.0/24 30
+assign_ce_interconnect pe1 ce5 10.0.0.2 10.0.0.1/30 10.0.0.0/24 30
 
-assign_ce_interconnect pe1 ce1 fd00:1::1/127 fd00:1::/127 fd00:1::/48
-assign_ce_interconnect pe1 ce3 fd00:1::1/127 fd00:1::/127 fd00:1::/48
-assign_ce_interconnect pe1 ce5 fd00:1::1/127 fd00:1::/127 fd00:1::/48
+assign_ce_interconnect pe1 ce1 fd00:1::1 fd00:1::/127 fd00:1::/48 127
+assign_ce_interconnect pe1 ce3 fd00:1::1 fd00:1::/127 fd00:1::/48 127
+assign_ce_interconnect pe1 ce5 fd00:1::1 fd00:1::/127 fd00:1::/48 127
 
-assign_ce_interconnect pe2 ce2 10.0.1.2/30 10.0.1.1/30 10.0.1.0/24
-assign_ce_interconnect pe2 ce4 10.0.1.2/30 10.0.1.1/30 10.0.1.0/24
-assign_ce_interconnect pe2 ce6 10.0.1.2/30 10.0.1.1/30 10.0.1.0/24
+assign_ce_interconnect pe2 ce2 10.0.1.2 10.0.1.1/30 10.0.1.0/24 30
+assign_ce_interconnect pe2 ce4 10.0.1.2 10.0.1.1/30 10.0.1.0/24 30
+assign_ce_interconnect pe2 ce6 10.0.1.2 10.0.1.1/30 10.0.1.0/24 30
 
-assign_ce_interconnect pe2 ce2 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/48
-assign_ce_interconnect pe2 ce4 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/48
-assign_ce_interconnect pe2 ce6 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/48
+assign_ce_interconnect pe2 ce2 fd00:1:1::1 fd00:1:1::/127 fd00:1:1::/48 127
+assign_ce_interconnect pe2 ce4 fd00:1:1::1 fd00:1:1::/127 fd00:1:1::/48 127
+assign_ce_interconnect pe2 ce6 fd00:1:1::1 fd00:1:1::/127 fd00:1:1::/48 127
 
 # assign route to ce
 function assign_ce_route {
