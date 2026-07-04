@@ -15,16 +15,23 @@
 
 # 1) nft: stamp fwmark = jhash(flowlabel) mod 3, and count per mark.
 ip netns exec pe1 nft create table ip6 testtable6
-ip netns exec pe1 nft create chain ip6 testtable6 testchain6 '{ type filter hook output priority filter ; }'
-ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark set jhash ip6 flowlabel mod 3 seed 15345
-ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark 0 ip6 daddr 2001:db8:1:501::/64 counter
-ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark 1 ip6 daddr 2001:db8:1:501::/64 counter
-ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark 2 ip6 daddr 2001:db8:1:501::/64 counter
+ip netns exec pe1 nft create chain ip6 testtable6 testchain6 '{ type filter hook output priority mangle ; policy accept ; }'
+ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark set jhash ip6 flowlabel mod 3 seed 15345 log flags all
+# ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark 0 ip6 daddr 2001:db8:1:501::/64 counter
+# ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark 1 ip6 daddr 2001:db8:1:501::/64 counter
+# ip netns exec pe1 nft add rule ip6 testtable6 testchain6 meta mark 2 ip6 daddr 2001:db8:1:501::/64 counter
 
 # 2) policy rule: fwmark picks the steering table.
-ip -n pe1 -6 rule add fwmark 0 table 1100
-ip -n pe1 -6 rule add fwmark 1 table 1101
-ip -n pe1 -6 rule add fwmark 2 table 1102
+
+# assign a temporary address to loopback interface of PE1
+ip -n pe1 a add 2001:db8:3:101::/64 dev lo
+
+# awaiting OSPF propagation
+sleep 3
+
+ip -n pe1 -6 rule add flowlabel 0x0/0x3 table 1100
+ip -n pe1 -6 rule add flowlabel 0x0/0x3 table 1100
+ip -n pe1 -6 rule add flowlabel 0x0/0x3 table 1100
 
 # 3) per-table SRv6 inline-mode steering routes (mirrors 02-traffic-steering.sh,
 #    one table per flow-label bucket). The single End SID per path is the
@@ -37,9 +44,12 @@ ip -n pe1 -6 route add 2001:db8:1:501::/64 table 1101 encap seg6 mode inline seg
 ip -n pe1 -6 route add 2001:db8:1:501::/64 table 1102 encap seg6 mode inline segs 2001:db8:1:203:1:: dev v-p31
 
 # 4) exercise it: three flow labels -> three marks -> three tables -> three paths.
-ip netns exec pe1 ping -c2 -6 -F 0xffffa -I 2001:db8:3:101:: 2001:db8:1:501::
-ip netns exec pe1 ping -c3 -6 -F 0xffffb -I 2001:db8:3:101:: 2001:db8:1:501::
-ip netns exec pe1 ping -c5 -6 -F 0xffffd -I 2001:db8:3:101:: 2001:db8:1:501::
+# 0xffffa mark should be 2
+# 0xffffb mark should be 0
+# 0xffffd mark should be 1
+ip netns exec pe1 traceroute --flowlabel=0xffffa -s 2001:db8:3:101:: 2001:db8:1:501::
+ip netns exec pe1 traceroute --flowlabel=0xffffb -s 2001:db8:3:101:: 2001:db8:1:501::
+ip netns exec pe1 traceroute --flowlabel=0xffffd -s 2001:db8:3:101:: 2001:db8:1:501::
 
 # 5) verify: per-mark counters + the three steering tables.
 ip netns exec pe1 nft list ruleset
