@@ -27,22 +27,21 @@ The provider fabric is 11 routers: two PEs (`pe1`, `pe2`) flanking a 3×3 grid o
 PE-anchored row-chains with vertical links only between adjacent rows:
 
 ```
-                        col1            col2            col3
-                     +-------+       +-------+       +-------+
-               +---->| p11   |------>| p12   |------>| p13   |----+
-               |     +-------+       +-------+       +-------+    |
-               |        |               |               |         |
-   +-------+   |     +-------+       +-------+       +-------+    |   +-------+
-   |  PE1  |---+---->| p21   |------>| p22   |------>| p23   |----+-->|  PE2  |
-   +-------+   |     +-------+       +-------+       +-------+    |   +-------+
-               |        |               |               |         |
-               |     +-------+       +-------+       +-------+    |
-               +---->| p31   |------>| p32   |------>| p33   |----+
-                     +-------+       +-------+       +-------+
+                  +-------+       +-------+       +-------+
+            +-----| p11   |-------| p12   |-------| p13   |----+
+            |     +-------+       +-------+       +-------+    |
+            |        |               |               |         |
++-------+   |     +-------+       +-------+       +-------+    |   +-------+
+|  PE1  |---+-----| p21   |-------| p22   |-------| p23   |----+---|  PE2  |
++-------+   |     +-------+       +-------+       +-------+    |   +-------+
+            |        |               |               |         |
+            |     +-------+       +-------+       +-------+    |
+            +-----| p31   |-------| p32   |-------| p33   |----+
+                  +-------+       +-------+       +-------+
 
-   ------>  inter-column (same row):  col c  ->  col c+1
-     |      intra-column (same col):  adjacent rows only  (row r <-> row r±1)
-   PE1 peers with every col-1 node; every col-3 node peers with PE2
+-------  inter-column (same row):  col c  --  col c+1
+  |      intra-column (same col):  adjacent rows only  (row r <-> row r±1)
+PE1 peers with every col-1 node; every col-3 node peers with PE2
 ```
 
 ## Architecture: two planes
