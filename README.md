@@ -284,6 +284,53 @@ ip -n pe1 -6 route show table local | grep -i seg6local   # decap SIDs
 ip -n pe1 route show vrf ce1                              # encap route
 ```
 
+## Tests
+
+The [`test/`](test/) directory holds scripted checks meant to be run **after** the
+`init.d/` scripts have brought the lab up. They sanity-check the underlay and exercise the
+SRv6 data plane (including the BGP-signaled VPN), and the second one demonstrates SRv6
+inline-mode traffic steering on top of the fabric.
+
+```bash
+# run the whole test suite in order
+for s in test/*.sh; do bash "$s"; done
+```
+
+### `test/01-ping-all.sh` — underlay + SRv6 reachability
+
+- **Underlay.** From `pe1`, pings every router locator — `pe1`, `pe2`, and all nine
+  P-routers (`2001:db8:1:<reg><node>::`).
+
+  > Note: these lines use `ip netns exec pe1 ip vrf exec srv6 ping …`, which predates the
+  > removal of the transport VRF. With the current underlay (default table) the equivalent
+  > is `ip netns exec pe1 ping …` — see *Verifying*.
+- **Static SRv6 encap (orgs 1 & 2).** `ce1 → 10.0.1.4` and `ce3 → 10.0.1.4` (IPv4), plus
+  `ce1 → fd00:1:1::` and `ce3 → fd00:1:1::` (IPv6), each for 10 packets. Org 1 takes the
+  direct PE1↔PE2 path; org 2 is steered `p11 → p31 → p33`.
+- **BGP-signaled L3VPN (org 3).** `ce5 → 10.0.1.4` (IPv4) and `ce5 → fd00:1:1::` (IPv6),
+  3 packets each — verifying CE5↔CE6 reachability once the iBGP/eBGP VPN has converged.
+
+The targets `10.0.1.4` / `fd00:1:1::` are just hosts inside the far site's prefixes
+(`10.0.1.0/24`, `fd00:1:1::/48`), which the far CE carries in full on its loopback, so the
+same address works for all three orgs (each lands in its own table: ce2, ce4, or ce6).
+
+### `test/02-traffic-steering.sh` — SRv6 inline-mode steering
+
+A standalone demo that adds its **own** steering route on `pe1`, separate from the
+encap-mode routes installed by `init.d/10-setup-pe-srv6-routes.sh`.
+
+1. Adds a temporary source address `2001:db8:3:101::/64` to `pe1`'s `lo` and waits for
+   OSPF to propagate it.
+2. **Baseline:** `ping -c20` and `traceroute` from `2001:db8:3:101::` to `pe2`'s locator
+   (`2001:db8:1:501::`) — observe the default IGP path and latency.
+3. Installs a policy rule (`from 2001:db8:3:101::/64 lookup 1001`) and a **`seg6 mode
+   inline`** route in table 1001 toward `2001:db8:1:501::/64` whose segment list is
+   `p11 → p32 → p13` (`2001:db8:1:201:1::, 2001:db8:1:303:1::, 2001:db8:1:401:1::`, via
+   `v-p11`). Inline mode injects an SRH next-header so the source address alone selects
+   this path.
+4. Re-runs the `ping`/`traceroute` to show the now-steered forwarding path (different
+   hops/latency than the baseline).
+
 ## Notes
 
 - The base container template lives in [`frr.conf.d/`](frr.conf.d/); per-node runtime
