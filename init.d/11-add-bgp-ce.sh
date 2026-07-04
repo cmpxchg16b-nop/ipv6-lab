@@ -18,7 +18,8 @@ router bgp 65002 vrf ce5
  no bgp default ipv4-unicast
  no bgp network import-check
  neighbor fd00:1:: remote-as 65001
- neighbor fd00:1:: update-source fd00:1::1
+ neighbor fd00:1:: description ce5
+ neighbor fd00:1:: update-source v-ce5
  neighbor fd00:1:: capability extended-nexthop
  !
  address-family ipv4 unicast
@@ -95,7 +96,8 @@ router bgp 65002 vrf ce6
  no bgp default ipv4-unicast
  no bgp network import-check
  neighbor fd00:1:1:: remote-as 65001
- neighbor fd00:1:1:: update-source fd00:1:1::1
+ neighbor fd00:1:1:: description ce6
+ neighbor fd00:1:1:: update-source v-ce6
  neighbor fd00:1:1:: capability extended-nexthop
  !
  address-family ipv4 unicast
@@ -175,7 +177,8 @@ router bgp 65001
  no bgp default ipv4-unicast
  no bgp network import-check
  neighbor fd00:1::1 remote-as 65002
- neighbor fd00:1::1 update-source fd00:1::
+ neighbor fd00:1::1 description pe1
+ neighbor fd00:1::1 update-source v-pe1
  neighbor fd00:1::1 capability extended-nexthop
  !
  address-family ipv4 unicast
@@ -214,7 +217,8 @@ router bgp 65001
  no bgp default ipv4-unicast
  no bgp network import-check
  neighbor fd00:1:1::1 remote-as 65002
- neighbor fd00:1:1::1 update-source fd00:1:1::
+ neighbor fd00:1:1::1 description pe2
+ neighbor fd00:1:1::1 update-source v-pe2
  neighbor fd00:1:1::1 capability extended-nexthop
  !
  address-family ipv4 unicast
