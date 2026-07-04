@@ -17,6 +17,8 @@ function conn_customer_to_provider {
 
   ip l add "$lhs_if" netns "$src" type veth peer "$rhs_if" netns "$dst"
   ip -n "$src" l set "$lhs_if" vrf "$vrf"
+  ip -n "$src" l set "$lhs_if" mtu "$mtu"
+  ip -n "$dst" l set "$rhs_if" mtu "$mtu"
   ip -n "$src" l set "$lhs_if" up
   ip -n "$dst" l set "$rhs_if" up
 }
