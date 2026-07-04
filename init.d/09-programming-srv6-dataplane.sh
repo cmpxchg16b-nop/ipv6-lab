@@ -99,7 +99,7 @@ NCOLS=3
 for (( col=1; col<=NCOLS; col++ )); do
   for (( row=1; row<=NROWS; row++ )); do
     node="p${row}${col}"
-    region=$((col+1))                       # column 1->region 2, 2->3, 3->4
+    region=$((col+1))
     p_loc=$(make_address $domain_global $region $row)
     p_end_sid="${p_loc}:${func_code_1_end}::"                 # <locator>:<func 1>:<arg 0 0 0>
     install_end_sid "$node" "$p_end_sid"

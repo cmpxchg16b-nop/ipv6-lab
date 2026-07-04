@@ -27,3 +27,13 @@ for (( col=2; col<=NCOLS+1; col++ )) do
     ip netns exec pe1 ip vrf exec srv6 ping -c1 "${dst_addr}::"
   done
 done
+
+# test SRv6 encapsulation with statically programmed control-plane
+ip netns exec ce1 ping -c10 10.0.1.4
+ip netns exec ce3 ping -c10 10.0.1.4
+ip netns exec ce1 ping -c10 fd00:1:1::
+ip netns exec ce3 ping -c10 fd00:1:1::
+
+# test SRv6 encapsulation and BGP L3VPN
+ip netns exec ce5 ping -c3 10.0.1.4
+ip netns exec ce5 ping -c3 fd00:1:1::
