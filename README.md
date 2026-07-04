@@ -298,12 +298,8 @@ for s in test/*.sh; do bash "$s"; done
 
 ### `test/01-ping-all.sh` — underlay + SRv6 reachability
 
-- **Underlay.** From `pe1`, pings every router locator — `pe1`, `pe2`, and all nine
-  P-routers (`2001:db8:1:<reg><node>::`).
-
-  > Note: these lines use `ip netns exec pe1 ip vrf exec srv6 ping …`, which predates the
-  > removal of the transport VRF. With the current underlay (default table) the equivalent
-  > is `ip netns exec pe1 ping …` — see *Verifying*.
+- **Underlay.** From `pe1` (default table, no VRF), pings every router locator — `pe1`,
+  `pe2`, and all nine P-routers (`2001:db8:1:<reg><node>::`).
 - **Static SRv6 encap (orgs 1 & 2).** `ce1 → 10.0.1.4` and `ce3 → 10.0.1.4` (IPv4), plus
   `ce1 → fd00:1:1::` and `ce3 → fd00:1:1::` (IPv6), each for 10 packets. Org 1 takes the
   direct PE1↔PE2 path; org 2 is steered `p11 → p31 → p33`.

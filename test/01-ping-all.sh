@@ -16,15 +16,15 @@ sleep 3
 pe1=$(make_address $domain_global 1 1)
 pe2=$(make_address $domain_global 5 1)
 
-ip netns exec pe1 ip vrf exec srv6 ping -c1 "${pe1}::"
-ip netns exec pe1 ip vrf exec srv6 ping -c1 "${pe2}::"
+ip netns exec pe1 ping -c1 "${pe1}::"
+ip netns exec pe1 ping -c1 "${pe2}::"
 
 NROWS=3
 NCOLS=3
 for (( col=2; col<=NCOLS+1; col++ )) do
   for (( row=1; row<=NROWS; row++ )) do
     dst_addr=$(make_address $domain_global $col $row)
-    ip netns exec pe1 ip vrf exec srv6 ping -c1 "${dst_addr}::"
+    ip netns exec pe1 ping -c1 "${dst_addr}::"
   done
 done
 
