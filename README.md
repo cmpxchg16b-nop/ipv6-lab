@@ -287,8 +287,9 @@ ip -n pe1 route show vrf ce1                              # encap route
 
 The [`test/`](test/) directory holds scripted checks meant to be run **after** the
 `init.d/` scripts have brought the lab up. They sanity-check the underlay and exercise the
-SRv6 data plane (including the BGP-signaled VPN), and the second one demonstrates SRv6
-inline-mode traffic steering on top of the fabric.
+SRv6 data plane (including the BGP-signaled VPN); `02` and `03` then demonstrate SRv6
+inline-mode traffic steering, the second keyed on source address and the third keyed on
+the IPv6 flow label.
 
 ```bash
 # run the whole test suite in order
@@ -325,6 +326,30 @@ encap-mode routes installed by `init.d/10-setup-pe-srv6-routes.sh`.
    this path.
 4. Re-runs the `ping`/`traceroute` to show the now-steered forwarding path (different
    hops/latency than the baseline).
+
+### `test/03-flowlabel.sh` — flow-label-based per-flow steering
+
+A standalone demo that builds on `02-traffic-steering.sh` and adds a **third routing
+selector** — the IPv6 flow label — so different flows land on different SRv6 paths even
+with the same source address.
+
+1. Installs an `nftables` rule on `pe1`'s output hook that stamps `meta mark =
+   jhash(ip6 flowlabel) mod 3`, plus three counting rules (one per mark) so the flow-label
+   → fwmark mapping is observable in `nft list ruleset`.
+2. Adds three policy rules: `fwmark 0` → table `1100`, `fwmark 1` → `1101`, `fwmark 2` →
+   `1102`.
+3. Installs one **`seg6 mode inline`** route per table, each steering through a different
+   column-1 P-router — `1100 → p11`, `1101 → p21`, `1102 → p31` (`2001:db8:1:201:1::`,
+   `2001:db8:1:202:1::`, `2001:db8:1:203:1::`, via `v-p11` / `v-p21` / `v-p31`). After the
+   single End SID is consumed, the OSPF underlay forwards the packet on to `pe2`.
+4. Sends three `ping -F` bursts (flow labels `0xffffa`, `0xffffb`, `0xffffd`) toward
+   `pe2`'s locator (`2001:db8:1:501::`) from `2001:db8:3:101::`; each flow hashes into a
+   different bucket and takes its corresponding SRv6 path.
+
+Depends on `02-traffic-steering.sh`, which allocates the `2001:db8:3:101::/64` source on
+`pe1`'s `lo` and waits for OSPF propagation. Note that `02` also leaves a `from
+2001:db8:3:101::/64 lookup 1001` rule in place; if the fwmark paths don't take effect,
+check `ip -n pe1 -6 rule show` and give the `fwmark` rules a lower `priority` number.
 
 ## Notes
 
