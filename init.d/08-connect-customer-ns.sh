@@ -77,19 +77,38 @@ function assign_ce_interconnect {
 
 assign_ce_interconnect pe1 ce1 10.0.0.2 10.0.0.1/30 10.0.0.0/24 30
 assign_ce_interconnect pe1 ce3 10.0.0.2 10.0.0.1/30 10.0.0.0/24 30
-assign_ce_interconnect pe1 ce5 10.0.0.2 10.0.0.1/30 10.0.0.0/24 30
 
 assign_ce_interconnect pe1 ce1 fd00:1::1 fd00:1::/127 fd00:1::/48 127
 assign_ce_interconnect pe1 ce3 fd00:1::1 fd00:1::/127 fd00:1::/48 127
-assign_ce_interconnect pe1 ce5 fd00:1::1 fd00:1::/127 fd00:1::/48 127
 
 assign_ce_interconnect pe2 ce2 10.0.1.2 10.0.1.1/30 10.0.1.0/24 30
 assign_ce_interconnect pe2 ce4 10.0.1.2 10.0.1.1/30 10.0.1.0/24 30
-assign_ce_interconnect pe2 ce6 10.0.1.2 10.0.1.1/30 10.0.1.0/24 30
 
 assign_ce_interconnect pe2 ce2 fd00:1:1::1 fd00:1:1::/127 fd00:1:1::/48 127
 assign_ce_interconnect pe2 ce4 fd00:1:1::1 fd00:1:1::/127 fd00:1:1::/48 127
-assign_ce_interconnect pe2 ce6 fd00:1:1::1 fd00:1:1::/127 fd00:1:1::/48 127
+
+function assign_ptp_interconnect {
+  local pe=$1
+  local ce=$2
+  local pe_addr=$3
+  local ce_addr=$4
+  local ce_lo=$5
+
+  local ce_intf="v-$ce"
+  local pe_intf="v-$pe"
+
+  # assign ptp addresses to both sides
+  ip -n $pe address add "$pe_addr" dev "$ce_intf"
+  ip -n $ce address add "$ce_addr" dev "$pe_intf"
+
+  # assign lo
+  ip -n $ce address add $ce_lo dev lo
+}
+
+assign_ptp_interconnect pe1 ce5 fd00:1::1/127 fd00:1::/127 fd00:1::/128
+assign_ptp_interconnect pe1 ce5 10.0.0.2/30 10.0.0.1/30 10.0.0.4/32
+assign_ptp_interconnect pe2 ce6 fd00:1:1::1/127 fd00:1:1::/127 fd00:1:1::/128
+assign_ptp_interconnect pe2 ce6 10.0.1.2/30 10.0.1.1/30 10.0.1.4/32
 
 # assign route to ce
 function assign_ce_route {

@@ -11,23 +11,29 @@ function config-pe1 {
   echo "
 enable
 configure terminal
-ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
-ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
-ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
 !
 router bgp 65002 vrf ce5
  bgp router-id 169.254.1.102
  no bgp ebgp-requires-policy
  no bgp default ipv4-unicast
  no bgp network import-check
- neighbor 10.0.0.1 remote-as 65001
- neighbor 10.0.0.1 update-source 10.0.0.2
+ neighbor fd00:1:: remote-as 65001
+ neighbor fd00:1:: update-source fd00:1::1
+ neighbor fd00:1:: capability extended-nexthop
  !
  address-family ipv4 unicast
-  neighbor 10.0.0.1 activate
-  neighbor 10.0.0.1 as-override
-  neighbor 10.0.0.1 prefix-list allow-in in
-  neighbor 10.0.0.1 prefix-list allow-out out
+  neighbor fd00:1:: activate
+  neighbor fd00:1:: as-override
+  sid vpn export auto
+  rd vpn export 65001:1003
+  rt vpn both 65001:1003
+  export vpn
+  import vpn
+ exit-address-family
+ !
+ address-family ipv6 unicast
+  neighbor fd00:1:: activate
+  neighbor fd00:1:: as-override
   sid vpn export auto
   rd vpn export 65001:1003
   rt vpn both 65001:1003
@@ -50,6 +56,10 @@ router bgp 65002
  exit
  !
  address-family ipv4 vpn
+  neighbor 2001:db8:2:501:: activate
+ exit-address-family
+ !
+ address-family ipv6 vpn
   neighbor 2001:db8:2:501:: activate
  exit-address-family
 exit
@@ -78,29 +88,35 @@ function config-pe2 {
   echo "
 enable
 configure terminal
-ip prefix-list allow-in seq 5 permit 10.0.0.0/24 ge 24 le 24
-ip prefix-list allow-in seq 10 permit 10.0.1.0/24 ge 24 le 24
-ip prefix-list allow-out seq 5 permit 0.0.0.0/0 ge 0 le 32
 !
 router bgp 65002 vrf ce6
  bgp router-id 169.254.2.102
  no bgp ebgp-requires-policy
  no bgp default ipv4-unicast
  no bgp network import-check
- neighbor 10.0.1.1 remote-as 65001
- neighbor 10.0.1.1 update-source 10.0.1.2
+ neighbor fd00:1:1:: remote-as 65001
+ neighbor fd00:1:1:: update-source fd00:1:1::1
+ neighbor fd00:1:1:: capability extended-nexthop
  !
  address-family ipv4 unicast
-  neighbor 10.0.1.1 activate
-  neighbor 10.0.1.1 prefix-list allow-in in
-  neighbor 10.0.1.1 prefix-list allow-out out
-  neighbor 10.0.0.1 as-override
+  neighbor fd00:1:1:: activate
+  neighbor fd00:1:1:: as-override
   sid vpn export auto
   rd vpn export 65001:1003
   rt vpn both 65001:1003
   export vpn
   import vpn
  exit-address-family
+ !
+ address-family ipv6 unicast
+   neighbor fd00:1:1:: activate
+   neighbor fd00:1:1:: as-override
+   sid vpn export auto
+   rd vpn export 65001:1003
+   rt vpn both 65001:1003
+   export vpn
+   import vpn
+  exit-address-family
 exit
 !
 router bgp 65002
@@ -117,6 +133,10 @@ router bgp 65002
  exit
  !
  address-family ipv4 vpn
+  neighbor 2001:db8:2:101:: activate
+ exit-address-family
+ !
+ address-family ipv6 vpn
   neighbor 2001:db8:2:101:: activate
  exit-address-family
 exit
@@ -147,18 +167,29 @@ configure terminal
 ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
 ip prefix-list allow-self seq 5 permit 10.0.0.0/24 ge 24 le 24
 !
+ipv6 prefix-list allow-all6 seq 5 permit fd00::/8 ge 8 le 64
+ipv6 prefix-list allow-self6 seq 5 permit fd00:1::/48 ge 48 le 48
+!
 router bgp 65001
  bgp router-id 169.254.1.101
- no bgp ebgp-requires-policy
  no bgp default ipv4-unicast
- neighbor 10.0.0.2 remote-as 65002
- neighbor 10.0.0.2 update-source 10.0.0.1
+ no bgp network import-check
+ neighbor fd00:1::1 remote-as 65002
+ neighbor fd00:1::1 update-source fd00:1::
+ neighbor fd00:1::1 capability extended-nexthop
  !
  address-family ipv4 unicast
   network 10.0.0.0/24
-  neighbor 10.0.0.2 activate
-  neighbor 10.0.0.2 prefix-list allow-all in
-  neighbor 10.0.0.2 prefix-list allow-self out
+  neighbor fd00:1::1 activate
+  neighbor fd00:1::1 prefix-list allow-all in
+  neighbor fd00:1::1 prefix-list allow-self out
+ exit-address-family
+ !
+ address-family ipv6 unicast
+  network fd00:1::/48
+  neighbor fd00:1::1 activate
+  neighbor fd00:1::1 prefix-list allow-all6 in
+  neighbor fd00:1::1 prefix-list allow-self6 out
  exit-address-family
 exit
 !
@@ -175,18 +206,29 @@ configure terminal
 ip prefix-list allow-all seq 5 permit 0.0.0.0/0 ge 0 le 32
 ip prefix-list allow-self seq 5 permit 10.0.1.0/24 ge 24 le 24
 !
+ipv6 prefix-list allow-self6 seq 5 permit fd00:1:1::/48 ge 48 le 48
+ipv6 prefix-list allow-all6 seq 5 permit fd00::/8 ge 8 le 64
+!
 router bgp 65001
  bgp router-id 169.254.2.101
- no bgp ebgp-requires-policy
  no bgp default ipv4-unicast
- neighbor 10.0.1.2 remote-as 65002
- neighbor 10.0.1.2 update-source 10.0.1.1
+ no bgp network import-check
+ neighbor fd00:1:1::1 remote-as 65002
+ neighbor fd00:1:1::1 update-source fd00:1:1::
+ neighbor fd00:1:1::1 capability extended-nexthop
  !
  address-family ipv4 unicast
   network 10.0.1.0/24
-  neighbor 10.0.1.2 activate
-  neighbor 10.0.1.2 prefix-list allow-all in
-  neighbor 10.0.1.2 prefix-list allow-self out
+  neighbor fd00:1:1::1 activate
+  neighbor fd00:1:1::1 prefix-list allow-all in
+  neighbor fd00:1:1::1 prefix-list allow-self out
+ exit-address-family
+ !
+ address-family ipv6 unicast
+  network fd00:1:1::/48
+  neighbor fd00:1:1::1 activate
+  neighbor fd00:1:1::1 prefix-list allow-all6 in
+  neighbor fd00:1:1::1 prefix-list allow-self6 out
  exit-address-family
 exit
 !
